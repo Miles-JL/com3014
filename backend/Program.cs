@@ -33,7 +33,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddSingleton<ChatHandler>();
+builder.Services.AddSingleton<ChatHandler>(sp => new ChatHandler(sp));
 
 builder.Services.AddCors(options =>
 {
@@ -57,12 +57,22 @@ app.UseAuthorization();
 app.UseWebSockets();
 app.MapControllers();
 
+app.UseStaticFiles();
+
 app.Map("/ws", async context =>
 {
     var handler = context.RequestServices.GetRequiredService<ChatHandler>();
     await handler.HandleAsync(context);
 });
 
-
+// Replace the current database initialization code
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    // This will delete and recreate the database completely
+    dbContext.Database.EnsureDeleted();
+    dbContext.Database.EnsureCreated();
+    Console.WriteLine("Database recreated successfully!");
+}
 
 app.Run();

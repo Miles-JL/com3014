@@ -1,23 +1,69 @@
-import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import ProfilePage from './ProfilePage';
+import './App.css';
 
-const API_URL = "http://localhost:5247";
-const WS_URL = "ws://localhost:5247/ws";
+const API_URL = 'http://localhost:5247';
+const WS_URL = 'ws://localhost:5247/ws';
 
 function App() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
-  const [message, setMessage] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [message, setMessage] = useState('');
   const [chat, setChat] = useState([]);
+  const [showProfile, setShowProfile] = useState(false);
   const socketRef = useRef(null);
+  const chatContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    
+    socketRef.current = new WebSocket(`${WS_URL}?token=${token}`);
+    
+    socketRef.current.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setChat(prev => [...prev, data]);
+      } catch (error) {
+        console.error('Error parsing message:', error);
+        setChat(prev => [...prev, { text: e.data, sender: 'System' }]);
+      }
+    };
+    
+    socketRef.current.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+    
+    return () => socketRef.current?.close();
+  }, [token]);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chat]);
 
   const handleRegister = async () => {
-    await axios.post(`${API_URL}/api/auth/register`, {
-      username,
-      passwordHash: password,
-    });
-    alert("Registered! Now login.");
+    try {
+      await axios.post(`${API_URL}/api/auth/register`, {
+        username,
+        passwordHash: password,
+      });
+      alert('Registered! Now login.');
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed. Username might already exist.');
+    }
   };
 
   const handleLogin = async () => {
@@ -27,37 +73,35 @@ function App() {
         passwordHash: password,
       });
 
-      console.log("Login response:", res); // Log the entire response
       if (res.data.token) {
-        setToken(res.data.token); // Set token state if a token is returned
+        setToken(res.data.token);
+        setUsername('');
+        setPassword('');
       } else {
-        alert("Login failed. Please check your credentials.");
+        alert('Login failed. Please check your credentials.');
       }
     } catch (error) {
-      console.error("Login error:", error);
-      alert("An error occurred during login.");
+      console.error('Login error:', error);
+      alert('An error occurred during login.');
     }
   };
 
-
-  useEffect(() => {
-    if (!token) return;
-    socketRef.current = new WebSocket(`${WS_URL}?token=${token}`);
-    socketRef.current.onmessage = (e) => setChat((prev) => [...prev, e.data]);
-    return () => socketRef.current?.close();
-  }, [token]);
+  const handleLogout = () => {
+    setToken('');
+    setChat([]);
+  };
 
   const sendMessage = () => {
     if (socketRef.current && message.trim()) {
       socketRef.current.send(message);
-      setMessage("");
+      setMessage('');
     }
   };
 
   return (
-    <div style={{ maxWidth: 500, margin: "auto" }}>
+    <div className="app-container">
       {!token ? (
-        <>
+        <div className="auth-container">
           <h2>Login / Register</h2>
           <input
             placeholder="Username"
@@ -70,26 +114,64 @@ function App() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button onClick={handleLogin}>Login</button>
-          <button onClick={handleRegister}>Register</button>
+          <div className="auth-buttons">
+            <button onClick={handleLogin}>Login</button>
+            <button onClick={handleRegister}>Register</button>
+          </div>
+        </div>
+      ) : showProfile ? (
+        <>
+          <div className="nav-bar">
+            <button onClick={() => setShowProfile(false)}>Back to Chat</button>
+            <button onClick={handleLogout}>Logout</button>
+          </div>
+          <ProfilePage />
         </>
       ) : (
         <>
-          <h2>Chat Room</h2>
-          <div
-            style={{
-              border: "1px solid #ccc",
-              padding: 10,
-              height: 300,
-              overflowY: "scroll",
-            }}
+          <div className="nav-bar">
+            <h2>Chat Room</h2>
+            <div>
+              <button onClick={() => setShowProfile(true)}>My Profile</button>
+              <button onClick={handleLogout}>Logout</button>
+            </div>
+          </div>
+          
+          <div 
+            className="chat-container"
+            ref={chatContainerRef}
           >
             {chat.map((msg, i) => (
-              <div key={i}>{msg}</div>
+              <div key={i} className="message">
+                <div className="message-header">
+                  {msg.profileImage && (
+                    <img 
+                      src={`${API_URL}${msg.profileImage}`} 
+                      alt={msg.sender}
+                      className="profile-thumbnail" 
+                    />
+                  )}
+                  <span className="sender">{msg.sender}</span>
+                  {msg.timestamp && (
+                    <span className="timestamp">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+                <div className="message-text">{msg.text}</div>
+              </div>
             ))}
           </div>
-          <input value={message} onChange={(e) => setMessage(e.target.value)} />
-          <button onClick={sendMessage}>Send</button>
+          
+          <div className="message-input">
+            <input 
+              value={message} 
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Type a message..."
+            />
+            <button onClick={sendMessage}>Send</button>
+          </div>
         </>
       )}
     </div>

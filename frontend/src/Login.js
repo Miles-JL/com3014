@@ -1,22 +1,23 @@
 import { useState } from "react";
 import axios from "axios";
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, switchToRegister }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post("https://localhost:5001/login", {
+      const res = await axios.post("http://localhost:5247/api/auth/login", {
         username,
-        password,
+        passwordHash: password, // Match the field name expected by your backend
       });
 
       localStorage.setItem("token", res.data.token);
       onLogin();
     } catch (err) {
-      setError("Login failed. Try test/password.");
+      console.error("Login error:", err);
+      setError("Login failed. Please check your credentials.");
     }
   };
 
@@ -39,9 +40,11 @@ export default function Login({ onLogin }) {
       />
       <br />
       <button onClick={handleLogin}>Log In</button>
-      <p>
-        No account? <button onClick={switchToRegister}>Register</button>
-      </p>
+      {switchToRegister && (
+        <p>
+          No account? <button onClick={switchToRegister}>Register</button>
+        </p>
+      )}
     </div>
   );
 }
