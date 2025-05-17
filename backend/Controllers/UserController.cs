@@ -50,16 +50,28 @@ public class UserController : ControllerBase
         if (user == null)
             return NotFound();
 
-        if (!string.IsNullOrEmpty(request.ProfileDescription))
+        // Update username if provided and different
+        if (!string.IsNullOrEmpty(request.Username) && request.Username != user.Username)
+        {
+            // Check if username is already taken
+            if (await _db.Users.AnyAsync(u => u.Username == request.Username))
+                return BadRequest(new { message = "Username is already taken" });
+                
+            user.Username = request.Username;
+        }
+        
+        // Update profile description if provided
+        if (request.ProfileDescription != null) // Allow empty string
             user.ProfileDescription = request.ProfileDescription;
-            
-        if (!string.IsNullOrEmpty(request.Location))
-            user.Location = request.Location;
             
         user.LastUpdated = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         
-        return Ok(user);
+        return Ok(new { 
+            username = user.Username,
+            profileDescription = user.ProfileDescription,
+            profileImage = user.ProfileImage
+        });
     }
 
     // Upload profile image

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 
+const API_URL = 'http://localhost:5247';
+
 export default function Register({ onRegister, switchToLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -8,11 +10,12 @@ export default function Register({ onRegister, switchToLogin }) {
 
   const handleRegister = async () => {
     try {
-      await axios.post("https://localhost:5001/register", {
+      await axios.post(`${API_URL}/api/auth/register`, {
         username,
-        password,
+        passwordHash: password,
       });
-      onRegister(); // optional auto-login after register
+      alert('Registered! Now login.');
+      if (switchToLogin) switchToLogin();
     } catch (err) {
       setError("Registration failed. Username might already exist.");
     }

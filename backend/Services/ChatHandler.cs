@@ -10,8 +10,13 @@ namespace JwtAuthApi.Services;
 
 public class ChatHandler
 {
-    private readonly ConcurrentDictionary<string, WebSocket> _sockets = new();
+    private readonly ConcurrentDictionary<int, ConcurrentDictionary<string, WebSocket>> _rooms = new();
+    // Store room messages for history
+    private readonly ConcurrentDictionary<int, List<object>> _roomMessages = new();
     private readonly IServiceProvider _serviceProvider;
+    
+    // Track when a user last joined a room to prevent duplicate notifications
+    private readonly ConcurrentDictionary<string, Dictionary<int, DateTime>> _lastJoinTime = new();
 
     public ChatHandler(IServiceProvider serviceProvider)
     {
@@ -33,6 +38,13 @@ public class ChatHandler
             return;
         }
 
+        var roomIdStr = context.Request.Query["roomId"];
+        if (string.IsNullOrEmpty(roomIdStr) || !int.TryParse(roomIdStr, out int roomId))
+        {
+            context.Response.StatusCode = 400;
+            return;
+        }
+
         var jwtService = context.RequestServices.GetRequiredService<JwtService>();
         var principal = jwtService.ValidateToken(token);
         if (principal == null)
@@ -41,17 +53,125 @@ public class ChatHandler
             return;
         }
 
+        // Ensure the room exists
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var roomExists = await db.ChatRooms.AnyAsync(r => r.Id == roomId && r.IsActive);
+            if (!roomExists)
+            {
+                context.Response.StatusCode = 404; // Room not found
+                return;
+            }
+        }
+
         var username = principal.Identity?.Name ?? Guid.NewGuid().ToString();
         var socket = await context.WebSockets.AcceptWebSocketAsync();
 
-        _sockets.TryAdd(username, socket);
+        // Add socket to room
+        var room = _rooms.GetOrAdd(roomId, _ => new ConcurrentDictionary<string, WebSocket>());
+        
+        // Check if this is a reconnection or if too soon since last join
+        bool isReconnect = false;
+        string userKey = $"{username}_{roomId}";
+        
+        if (!_lastJoinTime.TryGetValue(username, out var roomJoinTimes))
+        {
+            roomJoinTimes = new Dictionary<int, DateTime>();
+            _lastJoinTime[username] = roomJoinTimes;
+        }
+        
+        if (roomJoinTimes.TryGetValue(roomId, out DateTime lastJoin))
+        {
+            // If joined in the last 5 seconds, consider it a reconnection
+            if ((DateTime.UtcNow - lastJoin).TotalSeconds < 5)
+            {
+                isReconnect = true;
+            }
+        }
+        
+        // Update the last join time
+        roomJoinTimes[roomId] = DateTime.UtcNow;
+        
+        // Add socket to room
+        room.TryAdd(username, socket);
 
-        await ReceiveMessagesAsync(username, socket);
+        // Send message history to the newly connected user
+        if (_roomMessages.TryGetValue(roomId, out var messages))
+        {
+            var historyMessage = new
+            {
+                type = "history",
+                messages = messages
+            };
+            
+            await SendToClientAsync(socket, JsonSerializer.Serialize(historyMessage));
+        }
+        else
+        {
+            // Initialize message list for this room
+            _roomMessages[roomId] = new List<object>();
+        }
 
-        _sockets.TryRemove(username, out _);
+        // Notify all users in the room that a new user joined (unless reconnecting)
+        if (!isReconnect)
+        {
+            var joinMessage = new
+            {
+                type = "system",
+                text = $"{username} joined the room",
+                timestamp = DateTime.UtcNow
+            };
+            
+            // Add join message to room history
+            _roomMessages[roomId].Add(joinMessage);
+            
+            await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(joinMessage));
+        }
+
+        await ProcessMessagesAsync(roomId, username, socket);
+
+        // Remove the socket when done
+        if (_rooms.TryGetValue(roomId, out var roomSockets))
+        {
+            roomSockets.TryRemove(username, out _);
+            
+            // If room is empty, remove it
+            if (roomSockets.IsEmpty)
+            {
+                _rooms.TryRemove(roomId, out _);
+                // Optionally, you can choose to clear message history when room is empty
+                // _roomMessages.TryRemove(roomId, out _);
+            }
+            else
+            {
+                // Only send leave message if there are still people in the room
+                var leaveMessage = new
+                {
+                    type = "system",
+                    text = $"{username} left the room",
+                    timestamp = DateTime.UtcNow
+                };
+                
+                // Add leave message to room history
+                _roomMessages[roomId].Add(leaveMessage);
+                
+                await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(leaveMessage));
+            }
+        }
+        
+        // Clean up user join tracking
+        if (_lastJoinTime.TryGetValue(username, out var userRooms))
+        {
+            userRooms.Remove(roomId);
+            if (userRooms.Count == 0)
+            {
+                _lastJoinTime.TryRemove(username, out _);
+            }
+        }
     }
 
-    private async Task ReceiveMessagesAsync(string username, WebSocket socket)
+    private async Task ProcessMessagesAsync(int roomId, string username, WebSocket socket)
     {
         var buffer = new byte[1024 * 4];
         
@@ -80,18 +200,55 @@ public class ChatHandler
                 timestamp = DateTime.UtcNow
             };
             
-            await BroadcastMessageAsync(JsonSerializer.Serialize(messageObject));
+            // Add message to room history
+            if (_roomMessages.TryGetValue(roomId, out var messages))
+            {
+                messages.Add(messageObject);
+                
+                // Limit history to last 100 messages
+                if (messages.Count > 100)
+                {
+                    messages.RemoveAt(0);
+                }
+            }
+            
+            await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(messageObject));
         }
 
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed by server", CancellationToken.None);
     }
 
-    private async Task BroadcastMessageAsync(string message)
+    private async Task SendToClientAsync(WebSocket socket, string message)
     {
+        if (socket.State == WebSocketState.Open)
+        {
+            var buffer = Encoding.UTF8.GetBytes(message);
+            await socket.SendAsync(
+                new ArraySegment<byte>(buffer),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None
+            );
+        }
+    }
+
+    private async Task BroadcastToRoomAsync(int roomId, string message)
+    {
+        if (!_rooms.TryGetValue(roomId, out var roomSockets))
+            return;
+            
         var buffer = Encoding.UTF8.GetBytes(message);
-        var tasks = _sockets.Values.Select(socket =>
-            socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None)
-        );
+        var tasks = roomSockets.Values
+            .Where(socket => socket.State == WebSocketState.Open)
+            .Select(socket => 
+                socket.SendAsync(
+                    new ArraySegment<byte>(buffer), 
+                    WebSocketMessageType.Text, 
+                    true, 
+                    CancellationToken.None
+                )
+            );
+        
         await Task.WhenAll(tasks);
     }
 }

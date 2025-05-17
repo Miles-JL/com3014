@@ -59,7 +59,7 @@ app.MapControllers();
 
 app.UseStaticFiles();
 
-app.Map("/ws", async context =>
+app.Map("/ws/chat", async context =>
 {
     var handler = context.RequestServices.GetRequiredService<ChatHandler>();
     await handler.HandleAsync(context);

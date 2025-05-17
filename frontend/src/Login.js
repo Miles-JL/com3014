@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 
+const API_URL = 'http://localhost:5247';
+
 export default function Login({ onLogin, switchToRegister }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -8,13 +10,17 @@ export default function Login({ onLogin, switchToRegister }) {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post("http://localhost:5247/api/auth/login", {
+      const res = await axios.post(`${API_URL}/api/auth/login`, {
         username,
-        passwordHash: password, // Match the field name expected by your backend
+        passwordHash: password,
       });
 
-      localStorage.setItem("token", res.data.token);
-      onLogin();
+      if (res.data.token) {
+        localStorage.setItem("token", res.data.token);
+        onLogin(res.data.token);
+      } else {
+        setError("Login failed. Please check your credentials.");
+      }
     } catch (err) {
       console.error("Login error:", err);
       setError("Login failed. Please check your credentials.");
@@ -22,29 +28,25 @@ export default function Login({ onLogin, switchToRegister }) {
   };
 
   return (
-    <div>
+    <div className="auth-container">
       <h2>Login</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <div className="error">{error}</div>}
       <input
         type="text"
         placeholder="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
-      <br />
       <input
         type="password"
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <br />
-      <button onClick={handleLogin}>Log In</button>
-      {switchToRegister && (
-        <p>
-          No account? <button onClick={switchToRegister}>Register</button>
-        </p>
-      )}
+      <div className="auth-buttons">
+        <button onClick={handleLogin}>Log In</button>
+        <button onClick={switchToRegister}>Register</button>
+      </div>
     </div>
   );
 }

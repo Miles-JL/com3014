@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = 'https://localhost:5001';
+const API_URL = 'http://localhost:5247';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState({
     username: '',
     profileImage: '',
-    profileDescription: '',
-    location: ''
+    profileDescription: ''
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState('');
+  const [newUsername, setNewUsername] = useState('');
+  const [updateSuccess, setUpdateSuccess] = useState(false);
   
   useEffect(() => {
     fetchProfile();
@@ -35,8 +36,10 @@ export default function ProfilePage() {
       });
       
       setProfile(response.data);
+      setNewUsername(response.data.username);
       setIsLoading(false);
     } catch (err) {
+      console.error('Error fetching profile:', err);
       setError('Failed to load profile');
       setIsLoading(false);
     }
@@ -44,14 +47,15 @@ export default function ProfilePage() {
   
   const handleUpdate = async (e) => {
     e.preventDefault();
+    setUpdateSuccess(false);
     
     try {
       const token = localStorage.getItem('token');
       await axios.put(
         `${API_URL}/api/user/profile`,
         {
-          profileDescription: profile.profileDescription,
-          location: profile.location
+          username: newUsername !== profile.username ? newUsername : undefined,
+          profileDescription: profile.profileDescription
         },
         {
           headers: {
@@ -60,9 +64,16 @@ export default function ProfilePage() {
         }
       );
       
-      alert('Profile updated successfully!');
+      setUpdateSuccess(true);
+      setTimeout(() => setUpdateSuccess(false), 3000);
+      
+      // Update local profile data
+      if (newUsername !== profile.username) {
+        setProfile(prev => ({...prev, username: newUsername}));
+      }
     } catch (err) {
-      setError('Failed to update profile');
+      console.error('Error updating profile:', err);
+      setError('Failed to update profile. Username might already be taken.');
     }
   };
   
@@ -106,8 +117,10 @@ export default function ProfilePage() {
       
       setFile(null);
       setFilePreview('');
-      alert('Profile image uploaded successfully!');
+      setUpdateSuccess(true);
+      setTimeout(() => setUpdateSuccess(false), 3000);
     } catch (err) {
+      console.error('Error uploading image:', err);
       setError('Failed to upload image');
     }
   };
@@ -119,6 +132,7 @@ export default function ProfilePage() {
       <h2>Your Profile</h2>
       
       {error && <div className="error">{error}</div>}
+      {updateSuccess && <div className="success">Profile updated successfully!</div>}
       
       <div className="profile-image-section">
         <div className="current-image">
@@ -135,6 +149,7 @@ export default function ProfilePage() {
         </div>
         
         <div className="upload-section">
+          <h3>Upload New Image</h3>
           <input type="file" accept="image/*" onChange={handleFileChange} />
           
           {filePreview && (
@@ -148,7 +163,11 @@ export default function ProfilePage() {
             </div>
           )}
           
-          <button onClick={handleUpload} disabled={!file}>
+          <button 
+            className="upload-button" 
+            onClick={handleUpload} 
+            disabled={!file}
+          >
             Upload Image
           </button>
         </div>
@@ -159,26 +178,18 @@ export default function ProfilePage() {
           <label>Username</label>
           <input 
             type="text" 
-            value={profile.username} 
-            disabled 
+            value={newUsername}
+            onChange={(e) => setNewUsername(e.target.value)}
           />
         </div>
         
         <div className="form-group">
           <label>Profile Description</label>
           <textarea
-            value={profile.profileDescription}
+            value={profile.profileDescription || ''}
             onChange={(e) => setProfile({...profile, profileDescription: e.target.value})}
             rows={4}
-          />
-        </div>
-        
-        <div className="form-group">
-          <label>Location</label>
-          <input 
-            type="text" 
-            value={profile.location}
-            onChange={(e) => setProfile({...profile, location: e.target.value})}
+            placeholder="Tell others about yourself..."
           />
         </div>
         
