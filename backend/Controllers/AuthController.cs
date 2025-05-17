@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using JwtAuthApi.Data;
 using JwtAuthApi.Models;
 using JwtAuthApi.Services;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace JwtAuthApi.Controllers;
 
@@ -27,7 +25,7 @@ public class AuthController : ControllerBase
         if (await _db.Users.AnyAsync(u => u.Username == user.Username))
             return BadRequest("User already exists");
 
-        user.PasswordHash = ComputeSha256Hash(user.PasswordHash);
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         return Ok("User registered");
@@ -37,17 +35,10 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] User credentials)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == credentials.Username);
-        if (user == null || user.PasswordHash != ComputeSha256Hash(credentials.PasswordHash))
+        if (user == null || !BCrypt.Net.BCrypt.Verify(credentials.PasswordHash, user.PasswordHash))
             return Unauthorized();
 
         var token = _jwt.GenerateToken(user);
         return Ok(new { token });
-    }
-
-    private string ComputeSha256Hash(string rawData)
-    {
-        using var sha = SHA256.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-        return Convert.ToBase64String(bytes);
     }
 }

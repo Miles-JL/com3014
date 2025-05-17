@@ -73,6 +73,10 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.EnsureDeleted();
     dbContext.Database.EnsureCreated();
     Console.WriteLine("Database recreated successfully!");
+
+    // Seed the database with initial data
+    dbContext.SeedUsersFromCsv("Data/users_seed.csv");
+    Console.WriteLine("Users seeded successfully!");
 }
 
 app.Run();
