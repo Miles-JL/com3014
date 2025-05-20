@@ -74,53 +74,56 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      {!token ? (
-        <div className="auth-container">
-          <h2>Login / Register</h2>
-          <input
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <div className="auth-buttons">
-            <button onClick={handleLogin}>Login</button>
-            <button onClick={handleRegister}>Register</button>
-          </div>
-        </div>
-      ) : showProfile ? (
-        <>
-          <div className="nav-bar">
-            <button onClick={() => setShowProfile(false)}>Back to Chat</button>
-            <button onClick={handleLogout}>Logout</button>
-          </div>
-          <ProfilePage />
-        </>
-      ) : (
-        <>
-          <div className="nav-bar">
-            <div>
-              <button onClick={() => setShowProfile(true)}>My Profile</button>
-              <button onClick={handleLogout}>Logout</button>
+    <>
+      <div className="stars"></div>
+      <div className="stars2"></div>
+      <div className="stars3"></div>
+      <div className="app-container">
+        {!token ? (
+          <div className="auth-container">
+            <h2>Login / Register</h2>
+            <input
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              placeholder="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <div className="auth-buttons">
+              <button onClick={handleLogin}>Login</button>
+              <button onClick={handleRegister}>Register</button>
             </div>
           </div>
-          
-          {view === 'roomList' && (
-            <ChatRoomList onSelectRoom={handleSelectRoom} />
-          )}
-          
-          {view === 'chat' && selectedRoom && (
-            <Chat room={selectedRoom} onLeave={handleLeaveRoom} />
-          )}
-        </>
-      )}
-    </div>
+        ) : showProfile ? (
+          <>
+            <div className="nav-bar">
+              <button onClick={() => setShowProfile(false)}>Back to Chat</button>
+              <button onClick={handleLogout}>Logout</button>
+            </div>
+            <ProfilePage />
+          </>
+        ) : (
+          <>
+            <div className="nav-bar">
+              <div>
+                <button onClick={() => setShowProfile(true)}>My Profile</button>
+                <button onClick={handleLogout}>Logout</button>
+              </div>
+            </div>
+            {view === 'roomList' && (
+              <ChatRoomList onSelectRoom={handleSelectRoom} />
+            )}
+            {view === 'chat' && selectedRoom && (
+              <Chat room={selectedRoom} onLeave={handleLeaveRoom} />
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }
 

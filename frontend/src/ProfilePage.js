@@ -64,13 +64,38 @@ export default function ProfilePage() {
         }
       );
       
+      // Update token with new username to ensure proper authentication
+      if (newUsername !== profile.username) {
+        // Re-authenticate to get a fresh token with the new username
+        try {
+          // Get decoded token to extract password (if available)
+          const decodedToken = JSON.parse(atob(token.split('.')[1]));
+          
+          // Request a new token
+          const refreshResponse = await axios.post(`${API_URL}/api/auth/refresh-token`, {
+            oldUsername: profile.username,
+            newUsername: newUsername
+          }, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          
+          if (refreshResponse.data.token) {
+            localStorage.setItem('token', refreshResponse.data.token);
+          }
+        } catch (refreshErr) {
+          console.error('Error refreshing token:', refreshErr);
+          // Continue anyway as the profile update succeeded
+        }
+      }
+      
       setUpdateSuccess(true);
       setTimeout(() => setUpdateSuccess(false), 3000);
       
       // Update local profile data
-      if (newUsername !== profile.username) {
-        setProfile(prev => ({...prev, username: newUsername}));
-      }
+      setProfile(prev => ({...prev, username: newUsername}));
+      
     } catch (err) {
       console.error('Error updating profile:', err);
       setError('Failed to update profile. Username might already be taken.');

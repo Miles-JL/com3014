@@ -45,7 +45,7 @@ export default function Login({ onLogin, switchToRegister }) {
       />
       <div className="auth-buttons">
         <button onClick={handleLogin}>Log In</button>
-        <button onClick={switchToRegister}>Register</button>
+        <button className="switch-auth-btn" onClick={switchToRegister}>Register</button>
       </div>
     </div>
   );

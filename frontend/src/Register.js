@@ -22,26 +22,25 @@ export default function Register({ onRegister, switchToLogin }) {
   };
 
   return (
-    <div>
+    <div className="auth-container">
       <h2>Register</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <div className="error">{error}</div>}
       <input
         type="text"
         placeholder="Choose a username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
-      <br />
       <input
         type="password"
         placeholder="Choose a password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <br />
       <button onClick={handleRegister}>Register</button>
-      <p>
-        Already have an account? <button onClick={switchToLogin}>Log In</button>
+      <p style={{textAlign: "center", color: "#a3a3a3"}}>
+        Already have an account?{" "}
+        <button className="switch-auth-btn" onClick={switchToLogin}>Log In</button>
       </p>
     </div>
   );
