@@ -45,7 +45,7 @@ dotnet add chatroom-service reference ../shared/Shared.Models/Shared.Models.cspr
 dotnet add chatroom-service reference ../shared/Shared.Auth/Shared.Auth.csproj
 ```
 
-> You do not need to run these again unless folder structure changes.
+> You do not need to run these again unless folder structure changes at all.
 
 ---
 
