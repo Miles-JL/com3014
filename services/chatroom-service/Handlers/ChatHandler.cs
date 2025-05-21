@@ -78,7 +78,7 @@ public class ChatHandler
             RoomSockets[roomId] = new List<WebSocket>();
 
         RoomSockets[roomId].Add(webSocket);
-        
+
         // Send system message about user joining
         var joinMessage = new
         {
@@ -87,7 +87,7 @@ public class ChatHandler
             Timestamp = DateTime.UtcNow
         };
         var joinJson = JsonSerializer.Serialize(joinMessage);
-        
+
         var tasks = RoomSockets[roomId]
             .Where(s => s.State == WebSocketState.Open)
             .Select(s => s.SendAsync(
@@ -96,7 +96,7 @@ public class ChatHandler
                 true,
                 CancellationToken.None
             ));
-        
+
         await Task.WhenAll(tasks);
 
         var buffer = new byte[1024 * 4];
@@ -112,50 +112,53 @@ public class ChatHandler
                 break;
             }
 
-            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            var chatMessage = new
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var chatMessage = new
+                {
+                    Sender = username,
+                    ProfileImage = profileImage,
+                    Text = message,
+                    Timestamp = DateTime.UtcNow
+                };
+                var json = JsonSerializer.Serialize(chatMessage);
+
+                tasks = RoomSockets[roomId]
+                    .Where(s => s.State == WebSocketState.Open)
+                    .Select(s => s.SendAsync(
+                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None
+                    ));
+
+                await Task.WhenAll(tasks);
+            }
+
+            // Send system message about user leaving
+            var leaveMessage = new
             {
-                Sender = username,
-                ProfileImage = profileImage,
-                Text = message,
+                Type = "system",
+                Text = $"{username} left the room",
                 Timestamp = DateTime.UtcNow
             };
-            var json = JsonSerializer.Serialize(chatMessage);
+            var leaveJson = JsonSerializer.Serialize(leaveMessage);
+
+            RoomSockets[roomId].Remove(webSocket);
 
             tasks = RoomSockets[roomId]
                 .Where(s => s.State == WebSocketState.Open)
                 .Select(s => s.SendAsync(
-                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
+                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(leaveJson)),
                     WebSocketMessageType.Text,
                     true,
                     CancellationToken.None
                 ));
 
             await Task.WhenAll(tasks);
-        }
 
-        // Send system message about user leaving
-        var leaveMessage = new
-        {
-            Type = "system",
-            Text = $"{username} left the room",
-            Timestamp = DateTime.UtcNow
-        };
-        var leaveJson = JsonSerializer.Serialize(leaveMessage);
-        
-        RoomSockets[roomId].Remove(webSocket);
-        
-        tasks = RoomSockets[roomId]
-            .Where(s => s.State == WebSocketState.Open)
-            .Select(s => s.SendAsync(
-                new ArraySegment<byte>(Encoding.UTF8.GetBytes(leaveJson)),
-                WebSocketMessageType.Text,
-                true,
-                CancellationToken.None
-            ));
-            
-        await Task.WhenAll(tasks);
-        
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
+            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
+        }
     }
-}
+
+    
+
