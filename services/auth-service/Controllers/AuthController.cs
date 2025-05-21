@@ -6,8 +6,8 @@ using Shared.Auth;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
+using System;
+using AuthService.Data;
 
 namespace AuthService.Controllers
 {
@@ -125,23 +125,7 @@ namespace AuthService.Controllers
                 _logger.LogWarning(ex, "Unable to sync user during login. Continuing anyway.");
             }
 
-        return Ok(new { token });
-    }
-
-    [HttpPost("refresh-token")]
-    [Authorize]
-    public IActionResult RefreshToken()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var username = User.Identity?.Name;
-
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(username))
-            return Unauthorized();
-
-        // You may want to fetch the user from DB for more info if needed
-        var user = new User { Id = int.Parse(userId), Username = username };
-
-        var token = _jwt.GenerateToken(user);
-        return Ok(new { token });
+            return Ok(new { token });
+        }
     }
 }

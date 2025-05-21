@@ -50,11 +50,13 @@ public class ChatHandler
 
         // Fetch latest username from DB
         string username;
+        string profileImage = string.Empty;
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
             username = user?.Username ?? principal.Identity?.Name ?? Guid.NewGuid().ToString();
+            profileImage = user?.ProfileImage ?? string.Empty;
         }
 
         var roomIdStr = context.Request.Query["roomId"].ToString();
@@ -65,17 +67,37 @@ public class ChatHandler
         }
 
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        await HandleChatAsync(webSocket, username, roomId);
+        await HandleChatAsync(webSocket, username, profileImage, roomId);
     }
 
     private static readonly Dictionary<int, List<WebSocket>> RoomSockets = new();
 
-    private async Task HandleChatAsync(WebSocket webSocket, string username, int roomId)
+    private async Task HandleChatAsync(WebSocket webSocket, string username, string profileImage, int roomId)
     {
         if (!RoomSockets.ContainsKey(roomId))
             RoomSockets[roomId] = new List<WebSocket>();
 
         RoomSockets[roomId].Add(webSocket);
+        
+        // Send system message about user joining
+        var joinMessage = new
+        {
+            Type = "system",
+            Text = $"{username} joined the room",
+            Timestamp = DateTime.UtcNow
+        };
+        var joinJson = JsonSerializer.Serialize(joinMessage);
+        
+        var tasks = RoomSockets[roomId]
+            .Where(s => s.State == WebSocketState.Open)
+            .Select(s => s.SendAsync(
+                new ArraySegment<byte>(Encoding.UTF8.GetBytes(joinJson)),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None
+            ));
+        
+        await Task.WhenAll(tasks);
 
         var buffer = new byte[1024 * 4];
         var closeReceived = false;
@@ -93,13 +115,14 @@ public class ChatHandler
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
             var chatMessage = new
             {
-                Username = username,
-                Message = message,
+                Sender = username,
+                ProfileImage = profileImage,
+                Text = message,
                 Timestamp = DateTime.UtcNow
             };
             var json = JsonSerializer.Serialize(chatMessage);
 
-            var tasks = RoomSockets[roomId]
+            tasks = RoomSockets[roomId]
                 .Where(s => s.State == WebSocketState.Open)
                 .Select(s => s.SendAsync(
                     new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
@@ -111,7 +134,28 @@ public class ChatHandler
             await Task.WhenAll(tasks);
         }
 
+        // Send system message about user leaving
+        var leaveMessage = new
+        {
+            Type = "system",
+            Text = $"{username} left the room",
+            Timestamp = DateTime.UtcNow
+        };
+        var leaveJson = JsonSerializer.Serialize(leaveMessage);
+        
         RoomSockets[roomId].Remove(webSocket);
+        
+        tasks = RoomSockets[roomId]
+            .Where(s => s.State == WebSocketState.Open)
+            .Select(s => s.SendAsync(
+                new ArraySegment<byte>(Encoding.UTF8.GetBytes(leaveJson)),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None
+            ));
+            
+        await Task.WhenAll(tasks);
+        
         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
     }
 }
