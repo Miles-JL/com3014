@@ -7,4 +7,5 @@ public class UserSyncRequest
     public string? ProfileImage { get; set; }
     public string? ProfileDescription { get; set; }
     public string? Location { get; set; }
+    public bool IsAdmin { get; set; }
 }

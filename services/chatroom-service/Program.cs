@@ -2,9 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Auth;
-using Shared.Logging;
 using ChatroomService.Data;
-using ChatroomService.Handlers;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,7 +78,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<JwtService>(); // Add JwtService to DI container
 builder.Services.AddControllers();
-builder.Services.AddSingleton<ChatHandler>();
+builder.Services.AddTransient<ChatHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();

@@ -54,126 +54,65 @@ public class ChatHandler
             return;
         }
 
-        // Ensure the room exists
+        // Get user ID from token
+        var userIdClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+        {
+            context.Response.StatusCode = 401;
+            return;
+        }
+
+        // Fetch latest username from DB
+        string username;
+        string profileImage = string.Empty;
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var roomExists = await db.ChatRooms.AnyAsync(r => r.Id == roomId && r.IsActive);
-            if (!roomExists)
-            {
-                context.Response.StatusCode = 404; // Room not found
-                return;
-            }
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            username = user?.Username ?? principal.Identity?.Name ?? Guid.NewGuid().ToString();
+            profileImage = user?.ProfileImage ?? string.Empty;
         }
 
-        var username = principal.Identity?.Name ?? Guid.NewGuid().ToString();
-        var socket = await context.WebSockets.AcceptWebSocketAsync();
-
-        // Add socket to room
-        var room = _rooms.GetOrAdd(roomId, _ => new ConcurrentDictionary<string, WebSocket>());
-        
-        // Check if this is a reconnection or if too soon since last join
-        bool isReconnect = false;
-        string userKey = $"{username}_{roomId}";
-        
-        if (!_lastJoinTime.TryGetValue(username, out var roomJoinTimes))
+        var roomIdStr = context.Request.Query["roomId"].ToString();
+        if (!int.TryParse(roomIdStr, out int roomId))
         {
-            roomJoinTimes = new Dictionary<int, DateTime>();
-            _lastJoinTime[username] = roomJoinTimes;
-        }
-        
-        if (roomJoinTimes.TryGetValue(roomId, out DateTime lastJoin))
-        {
-            // If joined in the last 5 seconds, consider it a reconnection
-            if ((DateTime.UtcNow - lastJoin).TotalSeconds < 5)
-            {
-                isReconnect = true;
-            }
-        }
-        
-        // Update the last join time
-        roomJoinTimes[roomId] = DateTime.UtcNow;
-        
-        // Add socket to room
-        room.TryAdd(username, socket);
-
-        // Send message history to the newly connected user
-        if (_roomMessages.TryGetValue(roomId, out var messages))
-        {
-            var historyMessage = new
-            {
-                type = "history",
-                messages = messages
-            };
-            
-            await SendToClientAsync(socket, JsonSerializer.Serialize(historyMessage));
-        }
-        else
-        {
-            // Initialize message list for this room
-            _roomMessages[roomId] = new List<object>();
+            context.Response.StatusCode = 400;
+            return;
         }
 
-        // Notify all users in the room that a new user joined (unless reconnecting)
-        if (!isReconnect)
-        {
-            var joinMessage = new
-            {
-                type = "system",
-                text = $"{username} joined the room",
-                timestamp = DateTime.UtcNow
-            };
-            
-            // Add join message to room history
-            _roomMessages[roomId].Add(joinMessage);
-            
-            await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(joinMessage));
-        }
-
-        await ProcessMessagesAsync(roomId, username, socket);
-
-        // Remove the socket when done
-        if (_rooms.TryGetValue(roomId, out var roomSockets))
-        {
-            roomSockets.TryRemove(username, out _);
-            
-            // If room is empty, remove it
-            if (roomSockets.IsEmpty)
-            {
-                _rooms.TryRemove(roomId, out _);
-                // Optionally, you can choose to clear message history when room is empty
-                // _roomMessages.TryRemove(roomId, out _);
-            }
-            else
-            {
-                // Only send leave message if there are still people in the room
-                var leaveMessage = new
-                {
-                    type = "system",
-                    text = $"{username} left the room",
-                    timestamp = DateTime.UtcNow
-                };
-                
-                // Add leave message to room history
-                _roomMessages[roomId].Add(leaveMessage);
-                
-                await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(leaveMessage));
-            }
-        }
-        
-        // Clean up user join tracking
-        if (_lastJoinTime.TryGetValue(username, out var userRooms))
-        {
-            userRooms.Remove(roomId);
-            if (userRooms.Count == 0)
-            {
-                _lastJoinTime.TryRemove(username, out _);
-            }
-        }
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        await HandleChatAsync(webSocket, username, profileImage, roomId);
     }
 
-    private async Task ProcessMessagesAsync(int roomId, string username, WebSocket socket)
+    private static readonly Dictionary<int, List<WebSocket>> RoomSockets = new();
+
+    private async Task HandleChatAsync(WebSocket webSocket, string username, string profileImage, int roomId)
     {
+        if (!RoomSockets.ContainsKey(roomId))
+            RoomSockets[roomId] = new List<WebSocket>();
+
+        RoomSockets[roomId].Add(webSocket);
+        
+        // Send system message about user joining
+        var joinMessage = new
+        {
+            Type = "system",
+            Text = $"{username} joined the room",
+            Timestamp = DateTime.UtcNow
+        };
+        var joinJson = JsonSerializer.Serialize(joinMessage);
+        
+        var tasks = RoomSockets[roomId]
+            .Where(s => s.State == WebSocketState.Open)
+            .Select(s => s.SendAsync(
+                new ArraySegment<byte>(Encoding.UTF8.GetBytes(joinJson)),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None
+            ));
+        
+        await Task.WhenAll(tasks);
+
         var buffer = new byte[1024 * 4];
         
         // Fetch user profile info
@@ -189,67 +128,52 @@ public class ChatHandler
             var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
             if (result.MessageType == WebSocketMessageType.Close)
                 break;
-
-            var messageText = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            
-            // Create a message object with user details
-            var messageObject = new
-            {
-                text = messageText,
-                sender = username,
-                profileImage = userProfile?.ProfileImage ?? "",
-                timestamp = DateTime.UtcNow
-            };
-            
-            // Add message to room history
-            if (_roomMessages.TryGetValue(roomId, out var messages))
-            {
-                messages.Add(messageObject);
-                
-                // Limit history to last 100 messages
-                if (messages.Count > 100)
-                {
-                    messages.RemoveAt(0);
-                }
             }
-            
-            await BroadcastToRoomAsync(roomId, JsonSerializer.Serialize(messageObject));
+
+            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            var chatMessage = new
+            {
+                Sender = username,
+                ProfileImage = profileImage,
+                Text = message,
+                Timestamp = DateTime.UtcNow
+            };
+            var json = JsonSerializer.Serialize(chatMessage);
+
+            tasks = RoomSockets[roomId]
+                .Where(s => s.State == WebSocketState.Open)
+                .Select(s => s.SendAsync(
+                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
+                    WebSocketMessageType.Text,
+                    true,
+                    CancellationToken.None
+                ));
+
+            await Task.WhenAll(tasks);
         }
 
-        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed by server", CancellationToken.None);
-    }
-
-    private async Task SendToClientAsync(WebSocket socket, string message)
-    {
-        if (socket.State == WebSocketState.Open)
+        // Send system message about user leaving
+        var leaveMessage = new
         {
-            var buffer = Encoding.UTF8.GetBytes(message);
-            await socket.SendAsync(
-                new ArraySegment<byte>(buffer),
+            Type = "system",
+            Text = $"{username} left the room",
+            Timestamp = DateTime.UtcNow
+        };
+        var leaveJson = JsonSerializer.Serialize(leaveMessage);
+        
+        RoomSockets[roomId].Remove(webSocket);
+        
+        tasks = RoomSockets[roomId]
+            .Where(s => s.State == WebSocketState.Open)
+            .Select(s => s.SendAsync(
+                new ArraySegment<byte>(Encoding.UTF8.GetBytes(leaveJson)),
                 WebSocketMessageType.Text,
                 true,
                 CancellationToken.None
-            );
-        }
-    }
-
-    private async Task BroadcastToRoomAsync(int roomId, string message)
-    {
-        if (!_rooms.TryGetValue(roomId, out var roomSockets))
-            return;
+            ));
             
-        var buffer = Encoding.UTF8.GetBytes(message);
-        var tasks = roomSockets.Values
-            .Where(socket => socket.State == WebSocketState.Open)
-            .Select(socket => 
-                socket.SendAsync(
-                    new ArraySegment<byte>(buffer), 
-                    WebSocketMessageType.Text, 
-                    true, 
-                    CancellationToken.None
-                )
-            );
-        
         await Task.WhenAll(tasks);
+        
+        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
     }
 }

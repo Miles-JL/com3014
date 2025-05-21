@@ -7,27 +7,55 @@ export default function Chat({ room, onLeave }) {
   const [input, setInput] = useState("");
   const socketRef = useRef(null);
   const messagesContainerRef = useRef(null);
-  const [username, setUsername] = useState(""); // Track current user
+  const [username, setUsername] = useState("");
+  const [profileImage, setProfileImage] = useState("");
   const localMessagesRef = useRef(new Set()); // Track local message IDs to avoid duplicates
+  const connectionAttempted = useRef(false);
 
   useEffect(() => {
     // Get current username from token
-    try {
-      const token = localStorage.getItem("token");
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUsername(payload.unique_name || payload.name || "");
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const response = await fetch(`${API_URL}/api/user/profile`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setUsername(data.username);
+            setProfileImage(data.profileImage);
+          } else {
+            // Fallback to token decoding if profile fetch fails
+            try {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              setUsername(payload.unique_name || payload.name || "");
+            } catch (error) {
+              console.error("Failed to decode token:", error);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch user profile:", err);
       }
-    } catch (err) {
-      console.error("Failed to decode token:", err);
-    }
+    };
+    
+    fetchUserProfile();
   }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token || !room) return;
+    if (!token || !room || !username || connectionAttempted.current) return;
 
+    // Mark that we've attempted a connection to prevent duplicates
+    connectionAttempted.current = true;
+    
+    // Reset for each new room
     localMessagesRef.current = new Set();
+    setMessages([]);
 
     if (socketRef.current) {
       socketRef.current.close();
@@ -38,6 +66,13 @@ export default function Chat({ room, onLeave }) {
 
     socketRef.current.onopen = () => {
       console.log(`Connected to room: ${room.name}`);
+      
+      // Add system message about joining
+      setMessages([{
+        type: 'system',
+        text: `You joined the room`,
+        timestamp: new Date()
+      }]);
     };
 
     socketRef.current.onmessage = (event) => {
@@ -62,6 +97,10 @@ export default function Chat({ room, onLeave }) {
       }
     };
 
+    socketRef.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
     socketRef.current.onclose = () => {
       console.log("WebSocket disconnected");
     };
@@ -70,6 +109,7 @@ export default function Chat({ room, onLeave }) {
       if (socketRef.current) {
         socketRef.current.close();
       }
+      connectionAttempted.current = false;
     };
   }, [room, username]);
 
@@ -94,6 +134,14 @@ export default function Chat({ room, onLeave }) {
     }
   };
 
+  const handleLeave = () => {
+    if (socketRef.current) {
+      socketRef.current.close();
+    }
+    connectionAttempted.current = false;
+    onLeave();
+  }
+
   if (!room) {
     return <div>No chat room selected</div>;
   }
@@ -105,7 +153,7 @@ export default function Chat({ room, onLeave }) {
           <h2>{room.name}</h2>
           {room.description && <p className="chat-desc">{room.description}</p>}
         </div>
-        <button className="leave-btn" onClick={onLeave}>Leave Room</button>
+        <button className="leave-btn" onClick={handleLeave}>Leave Room</button>
       </div>
       <div className="chat-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
@@ -118,6 +166,17 @@ export default function Chat({ room, onLeave }) {
               ) : (
                 <>
                   <div className="message-header">
+                    {msg.profileImage ? (
+                      <img 
+                        src={`${API_URL}${msg.profileImage}`} 
+                        alt="Profile" 
+                        className="profile-thumbnail" 
+                      />
+                    ) : (
+                      <div className="profile-initial">
+                        {msg.sender?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
                     <span className="sender">{msg.sender || 'Anonymous'}</span>
                     {msg.timestamp && (
                       <span className="timestamp">

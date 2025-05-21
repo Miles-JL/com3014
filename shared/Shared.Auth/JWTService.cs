@@ -5,64 +5,80 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Configuration;
 using Shared.Models;
 
-namespace Shared.Auth;
-
-public class JwtService
+namespace Shared.Auth
 {
-    private readonly IConfiguration _config;
-    public JwtService(IConfiguration config) => _config = config;
-
-    public string GenerateToken(User user)
+    public class JwtService
     {
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured")));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        private readonly string _issuer;
+        private readonly string _audience;
+        private readonly string _secretKey;
 
-        var claims = new[]
+        public JwtService(IConfiguration configuration)
         {
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        };
+            var jwtSettings = configuration.GetSection("Jwt");
+            _issuer = jwtSettings["Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
+            _audience = jwtSettings["Audience"] ?? throw new InvalidOperationException("JWT Audience not configured");
+            _secretKey = jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Key not configured");
+        }
 
-        var expiryMinutes = int.TryParse(_config["Jwt:ExpiryMinutes"], out int minutes) ? minutes : 120;
-
-        var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-
-    public ClaimsPrincipal? ValidateToken(string token)
-    {
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
-
-        try
+        public string GenerateToken(User user)
         {
-            var validationParameters = new TokenValidationParameters
+            var claims = new List<Claim>
             {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = bool.Parse(_config["Jwt:ValidateIssuer"] ?? "true"),
-                ValidateAudience = bool.Parse(_config["Jwt:ValidateAudience"] ?? "true"),
-                ValidIssuer = _config["Jwt:Issuer"],
-                ValidAudience = _config["Jwt:Audience"],
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromMinutes(5)
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim("uid", user.Id.ToString()),
+                new Claim("unique_name", user.Username)
             };
 
-            return tokenHandler.ValidateToken(token, validationParameters, out _);
+            if (user.IsAdmin)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+            }
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var expiry = DateTime.Now.AddDays(1);
+
+            var token = new JwtSecurityToken(
+                issuer: _issuer,
+                audience: _audience,
+                claims: claims,
+                expires: expiry,
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
-        catch (Exception ex)
+
+
+
+        public ClaimsPrincipal? ValidateToken(string token)
         {
-            // Log the exception details for debugging
-            Console.WriteLine($"Token validation failed: {ex.Message}");
-            return null;
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_secretKey);
+
+            try
+            {
+                var validationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidIssuer = _issuer,
+                    ValidAudience = _audience,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(5)
+                };
+
+                return tokenHandler.ValidateToken(token, validationParameters, out _);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception details for debugging
+                Console.WriteLine($"Token validation failed: {ex.Message}");
+                return null;
+            }
         }
     }
 }

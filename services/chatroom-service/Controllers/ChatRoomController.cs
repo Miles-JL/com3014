@@ -44,7 +44,7 @@ public class ChatRoomController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ChatRoomResponse>> GetChatRoom(int id)
     {
-        var room = await _db.ChatRooms
+        var chatRoom = await _db.ChatRooms
             .Where(r => r.Id == id && r.IsActive)
             .Select(r => new ChatRoomResponse
             {
@@ -56,10 +56,10 @@ public class ChatRoomController : ControllerBase
             })
             .FirstOrDefaultAsync();
 
-        if (room == null)
+        if (chatRoom == null)
             return NotFound();
 
-        return room;
+        return chatRoom;
     }
 
     // Create new chat room
@@ -96,6 +96,12 @@ public class ChatRoomController : ControllerBase
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
         }
+        else if (user.Username != username)
+        {
+            // Update username if it has changed
+            user.Username = username;
+            await _db.SaveChangesAsync();
+        }
 
         var chatRoom = new ChatRoom
         {
@@ -108,6 +114,7 @@ public class ChatRoomController : ControllerBase
 
         _db.ChatRooms.Add(chatRoom);
         await _db.SaveChangesAsync();
+
         _logger.LogInformation("Created chat room: {RoomId} by user {UserId}", chatRoom.Id, userId);
 
         return CreatedAtAction(
@@ -137,14 +144,36 @@ public class ChatRoomController : ControllerBase
         if (chatRoom == null)
             return NotFound();
 
-        // Only the creator can delete a chat room
-        if (chatRoom.CreatorId != userId)
+        // Allow admin or creator to delete a chat room
+        var isAdmin = User.IsInRole("Admin");
+        if (chatRoom.CreatorId != userId && !isAdmin)
             return Forbid();
 
         chatRoom.IsActive = false;
         await _db.SaveChangesAsync();
         _logger.LogInformation("Deleted chat room: {RoomId} by user {UserId}", id, userId);
 
+        return NoContent();
+    }
+    
+    // Admin: Delete all chat rooms
+    [HttpDelete("admin/deleteAll")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteAllChatRooms()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Unauthorized("Invalid user ID claim");
+            
+        var chatRooms = await _db.ChatRooms.Where(r => r.IsActive).ToListAsync();
+        foreach (var room in chatRooms)
+        {
+            room.IsActive = false;
+        }
+        
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin {UserId} deleted all chat rooms", userId);
+        
         return NoContent();
     }
 }

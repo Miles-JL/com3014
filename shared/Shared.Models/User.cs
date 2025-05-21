@@ -10,5 +10,5 @@ public class User
     public string Location { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
-
+    public bool IsAdmin { get; set; }
 }

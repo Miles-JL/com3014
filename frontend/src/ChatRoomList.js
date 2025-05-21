@@ -9,10 +9,53 @@ export default function ChatRoomList({ onSelectRoom }) {
   const [error, setError] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newRoom, setNewRoom] = useState({ name: '', description: '' });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState({
+    username: '',
+    profileImage: ''
+  });
 
   useEffect(() => {
     fetchChatRooms();
+    checkAdminStatus();
+    fetchUserProfile();
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await axios.get(`${API_URL}/api/user/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      setProfile(response.data);
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    }
+  };
+
+  const checkAdminStatus = () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const roles = payload.role || [];
+      
+      // Check if user is admin (roles could be string or array)
+      if (Array.isArray(roles)) {
+        setIsAdmin(roles.includes('Admin'));
+      } else if (typeof roles === 'string') {
+        setIsAdmin(roles === 'Admin');
+      }
+    } catch (err) {
+      console.error('Error checking admin status:', err);
+    }
+  };
 
   const fetchChatRooms = async () => {
     try {
@@ -64,131 +107,124 @@ export default function ChatRoomList({ onSelectRoom }) {
       setError('Failed to create chat room');
     }
   };
+  
+  const handleDeleteAllRooms = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      if (!window.confirm('Are you sure you want to delete ALL chat rooms?')) {
+        return;
+      }
+      
+      await axios.delete(`${API_URL}/api/chatroom/admin/deleteAll`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      // Refresh rooms
+      setRooms([]);
+      alert('All chat rooms have been deleted');
+    } catch (err) {
+      console.error('Error deleting all rooms:', err);
+      alert('Failed to delete all rooms');
+    }
+  };
 
   if (isLoading) return <div>Loading chat rooms...</div>;
 
   return (
-    <div className="chat-room-list" style={{ maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "space-between", 
-        alignItems: "center", 
-        marginBottom: "20px" 
-      }}>
-        <h2>Available Chat Rooms</h2>
-        <button 
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: "#4caf50",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer"
-          }}
-        >
-          {showCreateForm ? 'Cancel' : 'Create New Room'}
-        </button>
+    <>
+      <div className="header-bar">
+        <div className="header-profile">
+          <div className="header-profile-image">
+            {profile.profileImage ? (
+              <img src={`${API_URL}${profile.profileImage}`} alt="Profile" />
+            ) : (
+              <div className="no-image-small">
+                {profile.username?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+            )}
+          </div>
+          <span className="header-username">{profile.username}</span>
+        </div>
       </div>
       
-      {error && <div style={{ color: "red", marginBottom: "15px" }}>{error}</div>}
-      
-      {showCreateForm && (
-        <form onSubmit={handleCreateRoom} style={{ 
-          backgroundColor: "#f5f5f5",
-          padding: "20px",
-          borderRadius: "8px",
-          marginBottom: "20px"
-        }}>
-          <div style={{ marginBottom: "15px" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Room Name:
-            </label>
-            <input 
-              type="text" 
-              value={newRoom.name}
-              onChange={(e) => setNewRoom({...newRoom, name: e.target.value})}
-              required
-              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: "15px" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Description:
-            </label>
-            <textarea
-              value={newRoom.description}
-              onChange={(e) => setNewRoom({...newRoom, description: e.target.value})}
-              rows={3}
-              placeholder="What's this room about?"
-              style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-          
-          <button 
-            type="submit"
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#4caf50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}
-          >
-            Create Room
-          </button>
-        </form>
-      )}
-      
-      {rooms.length === 0 ? (
-        <p style={{ textAlign: "center", color: "#666", fontStyle: "italic", marginTop: "30px" }}>
-          No chat rooms available. Create one!
-        </p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {rooms.map(room => (
-            <li 
-              key={room.id} 
-              style={{
-                padding: "15px",
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                marginBottom: "15px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}
+      <div className="chat-room-list">
+        <div className="chat-header">
+          <h2>Available Chat Rooms</h2>
+          <div className="chat-actions">
+            <button 
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              className="create-room-btn"
             >
-              <div>
-                <div style={{ fontSize: "1.2em", fontWeight: "bold", marginBottom: "5px" }}>
-                  {room.name}
-                </div>
-                <div style={{ color: "#555", marginBottom: "8px" }}>
-                  {room.description}
-                </div>
-                <div style={{ fontSize: "0.8em", color: "#888" }}>
-                  Created by {room.creatorName} on {new Date(room.createdAt).toLocaleString()}
-                </div>
-              </div>
+              {showCreateForm ? 'Cancel' : 'Create New Room'}
+            </button>
+            
+            {isAdmin && (
               <button 
-                onClick={() => onSelectRoom(room)}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#2196f3",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
+                onClick={handleDeleteAllRooms}
+                className="delete-all-btn"
               >
-                Join Room
+                Delete All Rooms
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+            )}
+          </div>
+        </div>
+        
+        {error && <div className="error">{error}</div>}
+        
+        {showCreateForm && (
+          <form onSubmit={handleCreateRoom} className="create-room-form">
+            <div className="form-group">
+              <label>Room Name:</label>
+              <input 
+                type="text" 
+                value={newRoom.name}
+                onChange={(e) => setNewRoom({...newRoom, name: e.target.value})}
+                required
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Description:</label>
+              <textarea
+                value={newRoom.description || ''}
+                onChange={(e) => setNewRoom({...newRoom, description: e.target.value})}
+                rows={3}
+                placeholder="What's this room about?"
+              />
+            </div>
+            
+            <button type="submit">Create Room</button>
+          </form>
+        )}
+        
+        {rooms.length === 0 ? (
+          <p className="no-rooms">No chat rooms available. Create one!</p>
+        ) : (
+          <ul className="room-list">
+            {rooms.map(room => (
+              <li key={room.id} className="room-item">
+                <div className="room-info">
+                  <div className="room-name">{room.name}</div>
+                  <div className="room-description">{room.description}</div>
+                  <div className="room-meta">
+                    Created by {room.creatorName} on {new Date(room.createdAt).toLocaleString()}
+                  </div>
+                </div>
+                <button 
+                  onClick={() => onSelectRoom(room)}
+                  className="join-room-btn"
+                >
+                  Join Room
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }
