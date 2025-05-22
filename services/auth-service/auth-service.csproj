@@ -25,4 +25,5 @@
     <ProjectReference Include="..\..\shared\Shared.Logging\Shared.Logging.csproj" />
   </ItemGroup>
 
+
 </Project>
