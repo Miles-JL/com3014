@@ -149,7 +149,8 @@ public class ChatRoomController : ControllerBase
         if (chatRoom.CreatorId != userId && !isAdmin)
             return Forbid();
 
-        chatRoom.IsActive = false;
+        // chatRoom.IsActive = false;
+        _db.ChatRooms.Remove(chatRoom);
         await _db.SaveChangesAsync();
         _logger.LogInformation("Deleted chat room: {RoomId} by user {UserId}", id, userId);
 
