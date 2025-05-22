@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Auth;
-using Shared.Logging; // Assuming you might use this later
+using Shared.Logging;
 using System.Text;
+using CsvHelper;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,8 +27,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add JWT service
-builder.Services.AddScoped<JwtService>(); // Ensure JwtService is correctly registered
+// Add services
+builder.Services.AddScoped<JwtService>();
+builder.Services.AddHttpClient();
+builder.Services.AddLogging();
 
 // JWT auth setup
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -71,4 +75,23 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Seed data in development
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var csvPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "auth_users_seed.csv");
+    
+    try
+    {
+        await db.SeedFromCsvAsync(csvPath, isDevelopment: true);
+        app.Logger.LogInformation("Database seeded successfully with test data");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "An error occurred while seeding the database");
+    }
+}
+
 app.Run();
