@@ -14,13 +14,22 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure CORS
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policyBuilder =>
+    options.AddPolicy("AllowFrontend", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:5247", "http://localhost:3000") // Allow requests from API Gateway and Frontend
+            .WithOrigins("http://localhost:3000") // Frontend
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials(); 
+            .AllowCredentials();
+    });
+    
+    options.AddPolicy("AllowApiGateway", policyBuilder =>
+    {
+        policyBuilder
+            .WithOrigins("http://localhost:5247") // API Gateway
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -120,7 +129,9 @@ app.UseStaticFiles(); // Enable serving static files (for profile images)
 
 app.UseHttpsRedirection();
 
-app.UseCors(); // Apply CORS policy
+// Apply CORS policies
+app.UseCors("AllowFrontend");
+app.UseCors("AllowApiGateway");
 
 app.UseAuthentication();
 app.UseAuthorization();
