@@ -125,13 +125,36 @@ namespace UserService.Controllers
             // Update username if provided and unique
             if (!string.IsNullOrEmpty(profileRequest.Username) && profileRequest.Username != user.Username)
             {
-                if (await _db.Users.AnyAsync(u => u.Username == profileRequest.Username))
+                // First check if username is available in the user service
+                if (await _db.Users.AnyAsync(u => u.Username == profileRequest.Username && u.Id != id))
                 {
                     return BadRequest(new { message = "Username is already taken" });
                 }
-                
-                user.Username = profileRequest.Username;
-                _logger.LogInformation("Username updated for user {UserId}: {NewUsername}", id, profileRequest.Username);
+
+                // Call Auth Service to update the username
+                try
+                {
+                    using var httpClient = new HttpClient();
+                    var authResponse = await httpClient.PostAsJsonAsync(
+                        "http://localhost:5106/api/Auth/update-username", 
+                        new { NewUsername = profileRequest.Username });
+
+                    if (!authResponse.IsSuccessStatusCode)
+                    {
+                        var error = await authResponse.Content.ReadAsStringAsync();
+                        _logger.LogWarning("Failed to update username in Auth Service: {Error}", error);
+                        return StatusCode(500, "Failed to update username. Please try again later.");
+                    }
+
+                    // If auth service update was successful, update the local username
+                    user.Username = profileRequest.Username;
+                    _logger.LogInformation("Username updated for user {UserId}: {NewUsername}", id, profileRequest.Username);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error calling Auth Service to update username");
+                    return StatusCode(500, "Failed to update username due to an internal error.");
+                }
             }
 
             // Update other fields if provided
@@ -164,6 +187,63 @@ namespace UserService.Controllers
         {
             _logger.LogError(ex, "Error updating user profile");
             return StatusCode(500, "An error occurred while updating the profile");
+        }
+    }
+
+    [HttpPost("sync-with-auth")]
+    [Authorize]
+    public async Task<IActionResult> SyncWithAuthService()
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out var id))
+            {
+                _logger.LogWarning("Invalid user ID in token during sync");
+                return Unauthorized("Invalid user ID claim");
+            }
+
+            var user = await _db.Users.FindAsync(id);
+            if (user == null)
+            {
+                _logger.LogWarning("User not found during sync: {UserId}", id);
+                return NotFound("User not found");
+            }
+
+            // Call Auth Service to update the user data
+            try
+            {
+                using var httpClient = new HttpClient();
+                var authResponse = await httpClient.PostAsJsonAsync(
+                    "http://localhost:5106/api/Auth/update-user", 
+                    new 
+                    {
+                        Id = user.Id,
+                        Username = user.Username,
+                        ProfileImage = user.ProfileImage,
+                        ProfileDescription = user.ProfileDescription,
+                        Location = user.Location
+                    });
+
+                if (!authResponse.IsSuccessStatusCode)
+                {
+                    var error = await authResponse.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Failed to sync with Auth Service: {Error}", error);
+                    return StatusCode(500, "Failed to sync with authentication service");
+                }
+
+                return Ok("User data synced with auth service");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing with Auth Service");
+                return StatusCode(500, "Failed to sync with authentication service");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SyncWithAuthService");
+            return StatusCode(500, "An error occurred while syncing with auth service");
         }
     }
 
