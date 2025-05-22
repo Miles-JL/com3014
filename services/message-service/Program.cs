@@ -2,16 +2,20 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Auth;
-using MessageService.Data; // ✅ your context
+using MessageService.Data;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// PostgreSQL setup
+//
+// Configure PostgreSQL database connection
+//
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// JWT setup
+//
+// Configure JWT authentication for secure endpoints
+//
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -31,29 +35,111 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+//
+// Define custom authorization policy for internal service-to-service requests
+// Used by realtime-service to post messages without JWT
+//
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("InternalOnly", policy =>
+    {
+        policy.RequireAssertion(context =>
+        {
+            var httpContext = context.Resource as HttpContext;
+            if (httpContext == null) return false;
+
+            return httpContext.Request.Headers.TryGetValue("X-Internal-Api-Key", out var value)
+                && value == "realtime-secret-123";
+        });
+    });
+});
+
+//
+// Register scoped dependencies and core services
+//
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
+//
+// Configure CORS to support:
+// 1. file:// based static pages (origin = "null")
+// 2. local API gateway running on http://localhost:5247
+//
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontendAndGateway", policy =>
+    {
+        policy
+            .WithOrigins(
+                "null",
+                "http://localhost:5247"
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
+//
+// Configure Swagger documentation and JWT support
+//
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "MessageService API", Version = "v1" });
+
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Enter your JWT token like this: Bearer {your token}"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+//
+// Allow access to current HttpContext (used in policies, etc.)
+//
 builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
+//
+// Dev-only middleware setup: enable Swagger and auto-run migrations
+//
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // Apply DB migrations automatically
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
 
+//
+// Core middleware pipeline: HTTPS, CORS, auth, controller routing
+//
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontendAndGateway");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 app.Run();
