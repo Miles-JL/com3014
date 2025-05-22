@@ -23,74 +23,58 @@ namespace AuthService.Data
 
         public async Task SeedFromCsvAsync(string csvPath, bool isDevelopment = false)
         {
-            if (Users.Any())
+            try
             {
-                if (isDevelopment)
+                if (Users.Any())
                 {
-                    Database.EnsureDeleted();
-                    Database.EnsureCreated();
-                }
-                else
-                {
-                    return; // Don't seed if there's already data
-                }
-            }
-
-            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                HasHeaderRecord = true,
-                HeaderValidated = null,
-                MissingFieldFound = null,
-                BadDataFound = null
-            };
-
-            using var reader = new StreamReader(csvPath);
-            using var csv = new CsvReader(reader, config);
-            
-            var records = csv.GetRecordsAsync<CsvUser>();
-            var httpClient = _httpClientFactory.CreateClient();
-            
-            await foreach (var record in records)
-            {
-                var user = new User
-                {
-                    Username = record.Username,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(record.Password),
-                    ProfileImage = record.ProfileImage,
-                    ProfileDescription = record.ProfileDescription,
-                    Location = record.Location,
-                    IsAdmin = record.IsAdmin,
-                    CreatedAt = DateTime.UtcNow,
-                    LastUpdated = DateTime.UtcNow
-                };
-
-                Users.Add(user);
-                await SaveChangesAsync();
-
-                // Sync to user service
-                try
-                {
-                    var syncPayload = new 
+                    if (isDevelopment)
                     {
-                        Id = user.Id,
-                        Username = user.Username,
-                        ProfileImage = user.ProfileImage,
-                        ProfileDescription = user.ProfileDescription,
-                        Location = user.Location,
-                        IsAdmin = user.IsAdmin
-                    };
-
-                    var response = await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
-                    if (!response.IsSuccessStatusCode)
+                        Database.EnsureDeleted();
+                        Database.EnsureCreated();
+                    }
+                    else
                     {
-                        _logger.LogWarning("Failed to sync user {Username} to user service. Status: {StatusCode}", 
-                            user.Username, response.StatusCode);
+                        return;
                     }
                 }
-                catch (Exception ex)
+
+                var config = new CsvConfiguration(CultureInfo.InvariantCulture)
                 {
-                    _logger.LogError(ex, "Error syncing user {Username} to user service", user.Username);
+                    HasHeaderRecord = true,
+                    HeaderValidated = null,
+                    MissingFieldFound = null,
+                    BadDataFound = null
+                };
+
+                using var reader = new StreamReader(csvPath);
+                using var csv = new CsvReader(reader, config);
+                
+                var records = csv.GetRecordsAsync<CsvUser>();
+                var httpClient = _httpClientFactory.CreateClient();
+                
+                await foreach (var record in records)
+                {
+                    var user = new User
+                    {
+                        Username = record.Username,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(record.Password),
+                        ProfileImage = record.ProfileImage,
+                        ProfileDescription = record.ProfileDescription,
+                        Location = record.Location,
+                        IsAdmin = record.IsAdmin,
+                        CreatedAt = DateTime.UtcNow,
+                        LastUpdated = DateTime.UtcNow
+                    };
+
+                    Users.Add(user);
+                    await SaveChangesAsync();
+
+                    _logger.LogInformation("Successfully added user: {Username}", user.Username);
                 }
+            }
+            catch (Exception ex)
+            {
+                throw;
             }
         }
 
@@ -117,4 +101,3 @@ namespace AuthService.Data
         public bool IsAdmin { get; set; }
     }
     }
-}
