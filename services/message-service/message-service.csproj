@@ -9,6 +9,16 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\shared\Shared.Models\Shared.Models.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Auth\Shared.Auth.csproj" />
+    <ProjectReference Include="..\..\shared\Shared.Logging\Shared.Logging.csproj" />
   </ItemGroup>
 
 </Project>
