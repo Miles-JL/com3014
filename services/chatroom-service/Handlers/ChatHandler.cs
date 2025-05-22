@@ -8,12 +8,10 @@ using ChatroomService.Data;
 
 public class ChatHandler
 {
-    private readonly RequestDelegate _next;
     private readonly IServiceProvider _serviceProvider;
 
-    public ChatHandler(RequestDelegate next, IServiceProvider serviceProvider)
+    public ChatHandler(IServiceProvider serviceProvider)
     {
-        _next = next;
         _serviceProvider = serviceProvider;
     }
 
