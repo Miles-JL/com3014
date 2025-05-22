@@ -72,7 +72,7 @@ namespace AuthService.Data
                     _logger.LogInformation("Successfully added user: {Username}", user.Username);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw;
             }
