@@ -89,14 +89,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    
-    // Apply migrations in development mode
+
+    // Clear and recreate DB in dev mode
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
+        await db.SeedAsync(true);
     }
 }
+
 
 app.UseHttpsRedirection();
 app.UseRouting();

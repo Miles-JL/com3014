@@ -20,5 +20,17 @@ namespace UserService.Data
                 entity.Property(e => e.Username).IsRequired();
             });
         }
+
+        public async Task SeedAsync(bool isDevelopment = false)
+        {
+            if (Users.Any())
+            {
+                if (isDevelopment)
+                {
+                    await Database.EnsureDeletedAsync();
+                    await Database.EnsureCreatedAsync();
+                }
+            }
+        }
     }
 }

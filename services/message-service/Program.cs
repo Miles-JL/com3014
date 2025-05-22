@@ -121,7 +121,7 @@ builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 
 //
-// Dev-only middleware setup: enable Swagger and auto-run migrations
+// Dev-only middleware setup: enable Swagger and clear db
 //
 if (app.Environment.IsDevelopment())
 {
@@ -130,7 +130,7 @@ if (app.Environment.IsDevelopment())
 
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    await db.SeedAsync(true);
 }
 
 //

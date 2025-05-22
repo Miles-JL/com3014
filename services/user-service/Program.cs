@@ -127,13 +127,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Apply migrations in development mode
+// Clear db in development mode
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
+        await db.SeedAsync(true);
     }
 }
 
