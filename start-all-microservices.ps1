@@ -6,7 +6,8 @@ $basePath = "$PSScriptRoot/services"
 $services = @(
     @{ name = "auth-service";      port = 5106 },
     @{ name = "user-service";      port = 5117 },
-    @{ name = "chatroom-service";  port = 5262 }
+    @{ name = "chatroom-service";  port = 5262 },
+    @{ name = "api-gateway";      port = 5247 }
 )
 
 foreach ($svc in $services) {
