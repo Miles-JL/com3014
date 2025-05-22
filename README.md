@@ -2,7 +2,7 @@
 
 Ensure the following tools are installed:
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [.NET 9 SDK](https://dotnet.microsoft.com/download)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop)
 - [pgAdmin 4](https://www.pgadmin.org/download/) (optional for viewing the DB)
 - Git / PowerShell (for script execution)
