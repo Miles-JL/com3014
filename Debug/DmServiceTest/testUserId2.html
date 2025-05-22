@@ -1,0 +1,113 @@
+<!-- testUserId2.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>test2 → test1</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    textarea { width: 100%; height: 200px; }
+    input, button { padding: 6px; margin-top: 6px; width: 100%; }
+  </style>
+</head>
+<body>
+  <h2>testUser2 → testUser1</h2>
+
+  <label for="msg">Message:</label>
+  <input id="msg" type="text" placeholder="Type your message..." />
+
+  <button onclick="sendMessage()">Send</button>
+
+  <h3>Message Log</h3>
+  <textarea id="log" readonly></textarea>
+
+  <script>
+    const userId = 2;
+    const recipientId = 1;
+    // This token is hardcoded for testing purposes. Change it depending on which user you are testing.
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjIiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoidGVzdDIiLCJ1aWQiOiIyIiwidW5pcXVlX25hbWUiOiJ0ZXN0MiIsImh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vd3MvMjAwOC8wNi9pZGVudGl0eS9jbGFpbXMvcm9sZSI6IkFkbWluIiwiZXhwIjoxNzQ4MDA0OTY2LCJpc3MiOiJjb20zMDE0LWF1dGgtc2VydmljZSIsImF1ZCI6ImNvbTMwMTQtbWljcm9zZXJ2aWNlcyJ9.kU8VPx6bXs7NqhLPMY4it6TGfi3hx5ZAf7k4VYdfsKY";
+
+    let socket = null;
+    let heartbeat = null;
+    let reconnectTimeout = null;
+    const log = document.getElementById("log");
+
+    function logMessage(msg) {
+        log.value += msg + "\n";
+    }
+
+    function connect() {
+        log.value = `Connecting as test${userId}...\n`;
+
+        socket = new WebSocket(`ws://localhost:5200/ws/dm?access_token=${token}`);
+
+        socket.onopen = async () => {
+        logMessage(`Connected as test${userId}`);
+        clearInterval(heartbeat);
+        clearTimeout(reconnectTimeout);
+
+        await new Promise(res => setTimeout(res, 500));
+        await loadHistory();
+
+        heartbeat = setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                senderId: userId,
+                recipientId: userId,
+                text: "__ping__",
+                timestamp: new Date().toISOString()
+            }));
+            }
+        }, 25000);
+        };
+
+        socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.text !== "__ping__") {
+            const prefix = msg.senderId === userId ? "You" : `test${msg.senderId}`;
+            logMessage(`${prefix}: ${msg.text}`);
+        }
+        };
+
+        // When actually implementing this in frontend, we should retry less aggressively
+        // and use exponential backoff. (possibly)
+        socket.onclose = () => {
+        logMessage("Disconnected from server. Retrying in 5s...");
+        clearInterval(heartbeat);
+        reconnectTimeout = setTimeout(connect, 5000);
+        };
+    }
+
+    function sendMessage() {
+        const text = document.getElementById("msg").value.trim();
+        if (!text || socket?.readyState !== WebSocket.OPEN) return;
+
+        socket.send(JSON.stringify({
+        senderId: userId,
+        recipientId,
+        text,
+        timestamp: new Date().toISOString()
+        }));
+
+        logMessage(`You: ${text}`);
+        document.getElementById("msg").value = "";
+    }
+
+    async function loadHistory() {
+        const res = await fetch(`http://localhost:5199/api/message/history?recipientId=${recipientId}&limit=50`, {
+        headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) return logMessage("Failed to load history");
+
+        const messages = await res.json();
+        messages.forEach(msg => {
+        const prefix = msg.senderId === userId ? "You" : `test${msg.senderId}`;
+        logMessage(`${prefix}: ${msg.content}`);
+        });
+    }
+
+    window.onload = connect;
+    </script>
+</body>
+</html>
