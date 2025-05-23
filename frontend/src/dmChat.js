@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:5247";
+const API_URL = "http://localhost:80";
 
 export default function DMChat({ recipient, onLeave }) {
   const [messages, setMessages] = useState([]);
