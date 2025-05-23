@@ -12,6 +12,8 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
+using UserService.Services; 
+using Microsoft.AspNetCore.Authentication; 
 
 namespace UserService.Controllers
 {
@@ -23,17 +25,23 @@ namespace UserService.Controllers
         private readonly ILogger<UserController> _logger;
         private readonly IWebHostEnvironment _env;
         private readonly UserSyncService _syncService;
+        private readonly ICdnService _cdnService; 
+        private readonly IAuthSyncService _authSyncService; 
 
         public UserController(
             AppDbContext db,
             ILogger<UserController> logger,
             IWebHostEnvironment env,
-            UserSyncService syncService)
+            UserSyncService syncService,
+            ICdnService cdnService,             
+            IAuthSyncService authSyncService)    
         {
             _db = db;
             _logger = logger;
             _env = env;
             _syncService = syncService;
+            _cdnService = cdnService;           
+            _authSyncService = authSyncService; 
         }
 
         [HttpGet("profile")]
@@ -181,6 +189,104 @@ namespace UserService.Controllers
         }
     }
 
+    [HttpPost("profile-image")]
+    [Authorize]
+    public async Task<IActionResult> UploadProfileImage(IFormFile file)
+    {
+        _logger.LogInformation("Attempting to upload profile image for user.");
+
+        // 1. Get User Info & Token
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var username = User.FindFirstValue(ClaimTypes.Name);
+
+        if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId) || string.IsNullOrEmpty(username))
+        {
+            _logger.LogWarning("Invalid or missing user claims.");
+            return Unauthorized("Invalid user claims. Please re-authenticate.");
+        }
+
+        var accessToken = await HttpContext.GetTokenAsync("access_token");
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            _logger.LogWarning("Access token not found for user {UserId}.", userId);
+            return Unauthorized("Access token not found. Please re-authenticate.");
+        }
+
+        _logger.LogInformation("User ID: {UserId}, Username: {Username} attempting image upload.", userId, username);
+
+        // 2. File Validation
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "No file uploaded." });
+        }
+
+        const long maxFileSize = 5 * 1024 * 1024; // 5MB
+        if (file.Length > maxFileSize)
+        {
+            return BadRequest(new { message = $"File size exceeds the limit of {maxFileSize / (1024 * 1024)}MB." });
+        }
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new { message = "Invalid file type. Allowed types: .jpg, .jpeg, .png" });
+        }
+
+        try
+        {
+            // 3. Call CDN Service
+            _logger.LogInformation("Calling CDN service to upload image for user {UserId}.", userId);
+            var cdnFileUrl = await _cdnService.UploadProfileImageAsync(file, accessToken);
+            if (string.IsNullOrEmpty(cdnFileUrl))
+            {
+                _logger.LogError("CDN service failed to return a file URL for user {UserId}.", userId);
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = "Error uploading image to CDN. The CDN service did not return a valid URL." });
+            }
+            _logger.LogInformation("Image uploaded to CDN for user {UserId}. URL: {CdnFileUrl}", userId, cdnFileUrl);
+
+            // 4. Call Auth Sync Service
+            _logger.LogInformation("Calling Auth Sync service to update profile for user {UserId}.", userId);
+            var userProfileUpdateDto = new UserProfileUpdateDto
+            {
+                UserId = userId.ToString(), // Though auth-service gets it from token, good to have for consistency
+                Username = username, // Send current username, auth-service can decide if it wants to use it
+                ProfileImageUrl = cdnFileUrl
+            };
+            var authUpdateSuccess = await _authSyncService.UpdateUserProfileAsync(userProfileUpdateDto, accessToken);
+            if (!authUpdateSuccess)
+            {
+                _logger.LogError("Auth Sync service failed to update profile for user {UserId} with URL {CdnFileUrl}.", userId, cdnFileUrl);
+                // Decide if this is a critical failure. For now, let's assume it is, but could be a soft fail.
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = "Error updating user profile in authentication service after CDN upload." });
+            }
+            _logger.LogInformation("Profile updated in Auth Sync service for user {UserId}.", userId);
+
+            // 5. Update Local User Database
+            var localUser = await _db.Users.FindAsync(userId);
+            if (localUser != null)
+            {
+                localUser.ProfileImage = cdnFileUrl;
+                localUser.LastUpdated = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+                _logger.LogInformation("Local user profile image updated for user {UserId}.", userId);
+            }
+            else
+            {
+                _logger.LogWarning("Local user with ID {UserId} not found for profile image update. Auth service was updated.", userId);
+                // Not necessarily an error if auth service is the source of truth and user-service is a cache/replica
+            }
+
+            // 6. Return Result
+            return Ok(new { fileUrl = cdnFileUrl, message = "Profile image uploaded and updated successfully." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An unexpected error occurred during profile image upload for user {UserId}.", userId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred. Please try again later." });
+        }
+    }
+
     [HttpPost("sync-with-auth")]
     [Authorize]
     public async Task<IActionResult> SyncWithAuthService()
@@ -237,99 +343,6 @@ namespace UserService.Controllers
             return StatusCode(500, "An error occurred while syncing with auth service");
         }
     }
-
-        [HttpPost("profile-image")]
-        [Authorize]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadProfileImage([FromForm] UploadProfileImageRequest imageRequest)
-        {
-            try
-            {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out var id))
-                {
-                    _logger.LogWarning("Invalid user ID in token");
-                    return Unauthorized("Invalid user ID claim");
-                }
-
-                var user = await _db.Users.FindAsync(id);
-                if (user == null)
-                {
-                    _logger.LogWarning("User not found for image upload: {UserId}", id);
-                    return NotFound();
-                }
-
-                var file = imageRequest.File;
-                if (file == null || file.Length == 0)
-                {
-                    return BadRequest("No file uploaded");
-                }
-
-                // Validate file type
-                var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif" };
-                if (!allowedTypes.Contains(file.ContentType.ToLower()))
-                {
-                    return BadRequest("Invalid file type. Only JPEG, PNG, and GIF are allowed.");
-                }
-
-                // Create directory if it doesn't exist
-                var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads");
-                if (!Directory.Exists(uploadsFolder))
-                {
-                    Directory.CreateDirectory(uploadsFolder);
-                }
-
-                // Generate unique filename
-                var fileExtension = Path.GetExtension(file.FileName);
-                var fileName = $"{id}_{Guid.NewGuid()}{fileExtension}";
-                var filePath = Path.Combine(uploadsFolder, fileName);
-
-                // Delete old profile image if it exists
-                if (!string.IsNullOrEmpty(user.ProfileImage) && user.ProfileImage.StartsWith("/uploads/"))
-                {
-                    var oldFilePath = Path.Combine(_env.WebRootPath, user.ProfileImage.TrimStart('/'));
-                    if (System.IO.File.Exists(oldFilePath))
-                    {
-                        try
-                        {
-                            System.IO.File.Delete(oldFilePath);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to delete old profile image");
-                        }
-                    }
-                }
-
-                // Save new file
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                // Update user profile with new image path
-                user.ProfileImage = $"/uploads/{fileName}";
-                user.LastUpdated = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
-
-                _logger.LogInformation("Profile image updated for user {UserId}", id);
-
-                // Return absolute URL for the image
-                var httpRequest = HttpContext.Request;
-                var baseUrl = $"{httpRequest.Scheme}://{httpRequest.Host.Value}";
-
-                return Ok(new
-                {
-                    profileImage = $"{baseUrl}{user.ProfileImage}",
-                    message = "Profile image uploaded successfully"
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error uploading profile image");
-                return StatusCode(500, "An error occurred while uploading the profile image");
-            }
-        }
 
         [HttpPost("sync")]
         [AllowAnonymous] // This endpoint needs to be called from auth-service without auth
