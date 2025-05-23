@@ -235,6 +235,17 @@ namespace UserService.Controllers
 
         try
         {
+            // 0. Get current user to find old profile image URL (if any)
+            var localUserForOldImage = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+            string? oldProfileImageFileName = null;
+            if (localUserForOldImage != null && !string.IsNullOrEmpty(localUserForOldImage.ProfileImage))
+            {
+                // Extract just the filename from the URL. Assumes URL like http://cdn.myapp.com/u/filename.jpg
+                // or /uploads/filename.jpg if it was a local path previously
+                oldProfileImageFileName = Path.GetFileName(localUserForOldImage.ProfileImage);
+                _logger.LogInformation("Old profile image found for user {UserId}: {OldProfileImageFileName}", userId, oldProfileImageFileName);
+            }
+
             // 3. Call CDN Service
             _logger.LogInformation("Calling CDN service to upload image for user {UserId}.", userId);
             var cdnFileUrl = await _cdnService.UploadProfileImageAsync(file, accessToken);
@@ -266,10 +277,26 @@ namespace UserService.Controllers
             var localUser = await _db.Users.FindAsync(userId);
             if (localUser != null)
             {
-                localUser.ProfileImage = cdnFileUrl;
+                localUser.ProfileImage = cdnFileUrl; // Update with new URL
                 localUser.LastUpdated = DateTime.UtcNow;
                 await _db.SaveChangesAsync();
                 _logger.LogInformation("Local user profile image updated for user {UserId}.", userId);
+
+                // 5a. Delete old image from CDN if it existed and all updates were successful
+                if (!string.IsNullOrEmpty(oldProfileImageFileName) && oldProfileImageFileName != Path.GetFileName(cdnFileUrl)) // Don't delete if it's somehow the same file
+                {
+                    _logger.LogInformation("Attempting to delete old profile image {OldProfileImageFileName} from CDN for user {UserId}.", oldProfileImageFileName, userId);
+                    bool deleteSuccess = await _cdnService.DeleteProfileImageAsync(oldProfileImageFileName, accessToken);
+                    if (deleteSuccess)
+                    {
+                        _logger.LogInformation("Successfully deleted old profile image {OldProfileImageFileName} from CDN for user {UserId}.", oldProfileImageFileName, userId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to delete old profile image {OldProfileImageFileName} from CDN for user {UserId}. This might require manual cleanup.", oldProfileImageFileName, userId);
+                        // Not returning an error to the client for this, as the main upload was successful.
+                    }
+                }
             }
             else
             {

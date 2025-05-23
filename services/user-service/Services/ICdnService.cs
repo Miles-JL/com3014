@@ -6,5 +6,6 @@ namespace UserService.Services
     public interface ICdnService
     {
         Task<string?> UploadProfileImageAsync(IFormFile file, string accessToken);
+        Task<bool> DeleteProfileImageAsync(string fileName, string accessToken);
     }
 }

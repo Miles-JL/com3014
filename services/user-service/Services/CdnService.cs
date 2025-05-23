@@ -13,11 +13,13 @@ namespace UserService.Services
     {
         private readonly HttpClient _httpClient;
         private readonly string _cdnServiceBaseUrl;
+        private readonly ILogger _logger;
 
-        public CdnService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+        public CdnService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<CdnService> logger)
         {
             _httpClient = httpClientFactory.CreateClient("CdnServiceClient");
             _cdnServiceBaseUrl = configuration["ServiceUrls:CdnService"] ?? "http://localhost:5250";
+            _logger = logger;
         }
 
         public async Task<string?> UploadProfileImageAsync(IFormFile file, string accessToken)
@@ -60,6 +62,44 @@ namespace UserService.Services
                 // Log exception
                 Console.WriteLine($"Exception during CDN upload: {ex.Message}");
                 return null;
+            }
+        }
+
+        public async Task<bool> DeleteProfileImageAsync(string fileName, string accessToken)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                _logger.LogWarning("DeleteProfileImageAsync called with null or empty fileName.");
+                return false;
+            }
+
+            try
+            {
+                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                
+                // The cdn-service expects just the filename (e.g., guid.jpg) not the full path or URL part
+                var justFileName = Path.GetFileName(fileName); // Extracts filename from URL or path
+
+                _logger.LogInformation("Attempting to delete image {FileName} from CDN.", justFileName);
+                var response = await _httpClient.DeleteAsync($"{_cdnServiceBaseUrl.TrimEnd('/')}/api/upload/{justFileName}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Successfully deleted image {FileName} from CDN.", justFileName);
+                    return true;
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("Failed to delete image {FileName} from CDN. Status: {StatusCode}, Error: {Error}", 
+                                     justFileName, response.StatusCode, errorContent);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception occurred while trying to delete image {FileName} from CDN.", fileName);
+                return false;
             }
         }
     }
