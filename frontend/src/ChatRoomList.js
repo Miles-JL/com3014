@@ -1,20 +1,23 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 const API_URL = 'http://localhost:80';
 
-export default function ChatRoomList({ onSelectRoom }) {
+export default function ChatRoomList({ onSelectRoom, onStartDm }) {
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newRoom, setNewRoom] = useState({ name: '', description: '' });
+  const [newRoom, setNewRoom] = useState({ name: "", description: "" });
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [profile, setProfile] = useState({
-    username: '',
-    profileImage: ''
+    username: "",
+    profileImage: "",
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     fetchChatRooms();
@@ -22,6 +25,17 @@ export default function ChatRoomList({ onSelectRoom }) {
     fetchUserProfile();
     getCurrentUserId();
   }, []);
+
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      if (searchQuery.length > 1) {
+        searchUsers(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(delay);
+  }, [searchQuery]);
 
   const getCurrentUserId = () => {
     try {
@@ -38,37 +52,36 @@ export default function ChatRoomList({ onSelectRoom }) {
 
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) return;
-      
+
       const response = await axios.get(`${API_URL}/api/user/profile`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-      
+
       setProfile(response.data);
     } catch (err) {
-      console.error('Error fetching profile:', err);
+      console.error("Error fetching profile:", err);
     }
   };
 
   const checkAdminStatus = () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) return;
-      
-      const payload = JSON.parse(atob(token.split('.')[1]));
+
+      const payload = JSON.parse(atob(token.split(".")[1]));
       const roles = payload.role || [];
-      
-      // Check if user is admin (roles could be string or array)
+
       if (Array.isArray(roles)) {
-        setIsAdmin(roles.includes('Admin'));
-      } else if (typeof roles === 'string') {
-        setIsAdmin(roles === 'Admin');
+        setIsAdmin(roles.includes("Admin"));
+      } else if (typeof roles === "string") {
+        setIsAdmin(roles === "Admin");
       }
     } catch (err) {
-      console.error('Error checking admin status:', err);
+      console.error("Error checking admin status:", err);
     }
   };
 
@@ -79,47 +92,40 @@ export default function ChatRoomList({ onSelectRoom }) {
       setRooms(response.data);
       setIsLoading(false);
     } catch (err) {
-      console.error('Error fetching chat rooms:', err);
-      setError('Failed to load chat rooms');
+      console.error("Error fetching chat rooms:", err);
+      setError("Failed to load chat rooms");
       setIsLoading(false);
     }
   };
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
-    
+
     if (!newRoom.name.trim()) {
-      setError('Room name is required');
+      setError("Room name is required");
       return;
     }
-    
+
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
-        setError('You must be logged in to create a room');
+        setError("You must be logged in to create a room");
         return;
       }
-      
-      const response = await axios.post(
-        `${API_URL}/api/chatroom`,
-        newRoom,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      
-      // Add the new room to the list and reset form
+
+      const response = await axios.post(`${API_URL}/api/chatroom`, newRoom, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
       setRooms([...rooms, response.data]);
-      setNewRoom({ name: '', description: '' });
+      setNewRoom({ name: "", description: "" });
       setShowCreateForm(false);
-      
-      // Select the newly created room
       onSelectRoom(response.data);
     } catch (err) {
-      console.error('Error creating chat room:', err);
-      setError('Failed to create chat room');
+      console.error("Error creating chat room:", err);
+      setError("Failed to create chat room");
     }
   };
 
@@ -145,28 +151,46 @@ export default function ChatRoomList({ onSelectRoom }) {
       alert("Failed to delete chat room");
     }
   };
-  
+
   const handleDeleteAllRooms = async () => {
-    try { 
-      const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem("token");
       if (!token) return;
-      
-      if (!window.confirm('Are you sure you want to delete ALL chat rooms?')) {
+
+      if (!window.confirm("Are you sure you want to delete ALL chat rooms?"))
         return;
-      }
-      
+
       await axios.delete(`${API_URL}/api/chatroom/admin/deleteAll`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-      
-      // Refresh rooms
+
       setRooms([]);
-      alert('All chat rooms have been deleted');
+      alert("All chat rooms have been deleted");
     } catch (err) {
-      console.error('Error deleting all rooms:', err);
-      alert('Failed to delete all rooms');
+      console.error("Error deleting all rooms:", err);
+      alert("Failed to delete all rooms");
+    }
+  };
+
+  const searchUsers = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_URL}/api/user/search?query=${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSearchResults(res.data);
+    } catch (err) {
+      console.error("User search failed:", err);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -187,6 +211,39 @@ export default function ChatRoomList({ onSelectRoom }) {
           </div>
           <span className="header-username">{profile.username}</span>
         </div>
+      </div>
+
+      <div className="user-search">
+        <input
+          type="text"
+          placeholder="Search users to DM..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {isSearching && <div>Searching...</div>}
+
+        {searchResults.length > 0 && (
+          <ul className="search-results">
+            {searchResults.map((user) => (
+              <li key={user.id} className="search-result-item">
+                <div className="user-result-info">
+                  {user.profileImage ? (
+                    <img
+                      src={`${API_URL}${user.profileImage}`}
+                      alt={user.username}
+                    />
+                  ) : (
+                    <div className="no-image-small">
+                      {user.username.charAt(0)}
+                    </div>
+                  )}
+                  <span>{user.username}</span>
+                </div>
+                <button onClick={() => onStartDm(user)}>DM</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="chat-room-list">
