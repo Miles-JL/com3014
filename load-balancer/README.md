@@ -36,7 +36,7 @@ The load balancer includes:
 cd "C:\Users\your-name\Downloads\nginx-1.27.5\nginx-1.27.5"
 
 # Start NGINX with the custom config (adjust the config path as needed)
-.\nginx.exe -c "C:\Users\your-name\path\to\your-project\services\load-balancer\nginx.conf"
+.\nginx.exe -c "C:\Users\your-name\path\to\your-project\load-balancer\nginx.conf"
 ```
 
 ## Testing Load Distribution
