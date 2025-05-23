@@ -119,7 +119,7 @@ This starts NGINX with our custom config. It proxies:
 - Frontend requests at `/` to `localhost:3000`
 - API requests at `/api/` to the round-robin upstream (5247, 5248, 5249)
 
-### Optional: Managing NGINX (Dp these from a new terminal)
+### Optional: Managing NGINX (Do these from a new terminal)
 
 ```powershell
 # Reload the config
