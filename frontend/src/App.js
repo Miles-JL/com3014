@@ -5,7 +5,7 @@ import ChatRoomList from './ChatRoomList';
 import Chat from './Chat';
 import './App.css';
 
-const API_URL = 'http://localhost:5247';
+const API_URL = 'http://localhost:80';
 
 function App() {
   const [username, setUsername] = useState('');

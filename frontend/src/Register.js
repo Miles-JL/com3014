@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_URL = 'http://localhost:5247';
+const API_URL = 'http://localhost:80';
 
 export default function Register({ onRegister, switchToLogin }) {
   const [username, setUsername] = useState("");
