@@ -26,50 +26,27 @@ Username: postgres
 Password: postgres
 ```
 
-You should see `auth_db`, `user_db`, and `chatroom_db` created after the services initialize and run migrations.
+You should see `auth_db`, `user_db`, `chatroom_db`, and `message_db` created after the services initialize and run migrations.
 
 ---
 
-## Step 2: Restore & Link Shared Projects
+## Step 2: Reset Migrations
 
-Each microservice references shared logic (e.g., models, JWT auth). These links were created using:
+Run the following PowerShell script from the root directory to reset and reinitialize migrations for all services:
 
-```bash
-dotnet add auth-service reference ../shared/Shared.Models/Shared.Models.csproj
-dotnet add auth-service reference ../shared/Shared.Auth/Shared.Auth.csproj
-
-dotnet add user-service reference ../shared/Shared.Models/Shared.Models.csproj
-dotnet add user-service reference ../shared/Shared.Auth/Shared.Auth.csproj
-
-dotnet add chatroom-service reference ../shared/Shared.Models/Shared.Models.csproj
-dotnet add chatroom-service reference ../shared/Shared.Auth/Shared.Auth.csproj
+```powershell
+powershell -ExecutionPolicy Bypass -File .\reset-migrations.ps1
 ```
 
-> You do not need to run these again unless folder structure changes at all.
+This script will:
+- Drop existing databases.
+- Remove old migrations.
+- Add new `Init` migrations.
+- Update the databases.
 
 ---
 
-## Step 3: Migrate Databases (Only Needed Once per Dev Machine)
-
-Run the following in each service directory **once**:
-
-```bash
-cd auth-service
-dotnet ef database update
-
-cd ../user-service
-dotnet ef database update
-
-cd ../chatroom-service
-dotnet ef database update
-```
-
-> Make sure `dotnet ef` tools are installed:  
-> `dotnet tool install --global dotnet-ef`
-
----
-
-## Step 4: Start All Microservices
+## Step 3: Start All Microservices
 
 Run this PowerShell script from the root directory:
 
@@ -77,34 +54,45 @@ Run this PowerShell script from the root directory:
 powershell -ExecutionPolicy Bypass -File .\start-all-microservices.ps1
 ```
 
-This launches all three microservices with predefined ports:
+This launches all the microservices with predefined ports:
 
 - `auth-service`: http://localhost:5106  
 - `user-service`: http://localhost:5117  
-- `chatroom-service`: http://localhost:5262
+- `chatroom-service`: http://localhost:5262  
+- `message-service`: http://localhost:5199  
+- `realtime-service`: http://localhost:5200  
+- `notification-service`: http://localhost:5201  
+- `api-gateway`: http://localhost:5247  
 
-Each exposes Swagger UI for testing.
-
----
-
-## JWT Auth & Inter-Service Sync
-
-- When a user logs in/registers via `auth-service`, a JWT is returned.
-- You must pass this JWT (with `Bearer` prefix) to protected routes in `user-service` and `chatroom-service`.
-
-Inter-service user syncing is already wired — `auth-service` makes an HTTP POST to `user-service/api/User/sync` to propagate the user after registration.
+Each exposes Swagger UI for testing (if applicable).
 
 ---
 
-## Reset Migrations
+## Step 4: Start the Frontend
 
-If you ever want to reset the DB:
+Run this PowerShell script from the root directory to start the frontend application:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-frontend.ps1
+```
+
+This script will:
+- Navigate to the `frontend` directory.
+- Install all required dependencies using `npm install`.
+- Start the development server using `npm start`.
+
+The frontend will be available at:
+
+- `http://localhost:3000` (default React development server port).
+
+---
+
+## Reset Migrations (Optional)
+
+If you ever want to reset the DB manually:
 
 ```bash
 dotnet ef migrations remove
 dotnet ef migrations add Init
 dotnet ef database update
 ```
-
-
----
