@@ -75,9 +75,9 @@ namespace AuthService.Controllers
                     };
                     _db.Users.Add(adminUser);
                     await _db.SaveChangesAsync();
-                    
+
                     // Sync admin to user-service
-                    try 
+                    try
                     {
                         using var httpClient = new HttpClient();
                         var syncPayload = new UserSyncRequest
@@ -93,7 +93,7 @@ namespace AuthService.Controllers
                         _logger.LogError(ex, "Error syncing admin user");
                     }
                 }
-                
+
                 var adminToken = _jwt.GenerateToken(adminUser);
                 return Ok(new { token = adminToken });
             }
@@ -126,6 +126,19 @@ namespace AuthService.Controllers
             }
 
             return Ok(new { token });
+        }
+
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchUsers([FromQuery] string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return BadRequest("Search query is required.");
+
+            var users = await _db.Users
+                .Where(u => u.Username.Contains(query))
+                .Select(u => new { u.Id, u.Username, u.ProfileImage })
+                .ToListAsync();
+
+            return Ok(users);
         }
     }
 }

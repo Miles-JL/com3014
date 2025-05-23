@@ -157,6 +157,7 @@ public class DmHandler
             var directMessage = new DirectMessage
             {
                 SenderId = msg.SenderId,
+                Sender = msg.Sender,
                 RecipientId = msg.RecipientId,
                 Content = msg.Text,
                 Timestamp = msg.Timestamp,
@@ -180,6 +181,10 @@ public class RealtimeMessage
 {
     [JsonPropertyName("senderId")]
     public int SenderId { get; set; }
+
+    [JsonPropertyName("sender")]
+    public string Sender { get; set; } = "";
+    public int profileImage { get; set; }
 
     [JsonPropertyName("recipientId")]
     public int RecipientId { get; set; }

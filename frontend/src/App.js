@@ -1,25 +1,29 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import ProfilePage from './ProfilePage';
-import ChatRoomList from './ChatRoomList';
-import Chat from './Chat';
-import './App.css';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import ProfilePage from "./ProfilePage";
+import ChatRoomList from "./ChatRoomList";
+import Chat from "./Chat";
+import DmChat from "./dmChat"; // import DM chat
+import "./App.css";
 
-const API_URL = 'http://localhost:5247';
+const API_URL = "http://localhost:5247";
 
 function App() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [showProfile, setShowProfile] = useState(false);
-  const [view, setView] = useState('roomList'); // roomList, chat
-  const [selectedRoom, setSelectedRoom] = useState(null);
+
+  // Instead of separate view states, just hold current chat info:
+  const [selectedRoom, setSelectedRoom] = useState(null); // for group chat
+  // Remove threadId because backend doesn't track it, just store recipient user object:
+  const [activeDmRecipient, setActiveDmRecipient] = useState(null);
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('token', token);
+      localStorage.setItem("token", token);
     } else {
-      localStorage.removeItem('token');
+      localStorage.removeItem("token");
     }
   }, [token]);
 
@@ -29,10 +33,10 @@ function App() {
         username,
         passwordHash: password,
       });
-      alert('Registered! Now login.');
+      alert("Registered! Now login.");
     } catch (error) {
-      console.error('Registration error:', error);
-      alert('Registration failed. Username might already exist.');
+      console.error("Registration error:", error);
+      alert("Registration failed. Username might already exist.");
     }
   };
 
@@ -45,32 +49,45 @@ function App() {
 
       if (res.data.token) {
         setToken(res.data.token);
-        setUsername('');
-        setPassword('');
+        setUsername("");
+        setPassword("");
       } else {
-        alert('Login failed. Please check your credentials.');
+        alert("Login failed. Please check your credentials.");
       }
     } catch (error) {
-      console.error('Login error:', error);
-      alert('An error occurred during login.');
+      console.error("Login error:", error);
+      alert("An error occurred during login.");
     }
   };
 
   const handleLogout = () => {
-    setToken('');
-    setView('roomList');
+    setToken("");
     setSelectedRoom(null);
+    setActiveDmRecipient(null);
     setShowProfile(false);
   };
 
+  // Select a group chat room (called by ChatRoomList)
   const handleSelectRoom = (room) => {
     setSelectedRoom(room);
-    setView('chat');
+    setActiveDmRecipient(null);
   };
 
+  // Start DM chat (called by ChatRoomList or a user search component)
+  // Changed: only recipient user passed, no threadId needed
+  const handleStartDm = (recipient) => {
+    setActiveDmRecipient(recipient);
+    setSelectedRoom(null);
+  };
+
+  // Leave group chat room
   const handleLeaveRoom = () => {
     setSelectedRoom(null);
-    setView('roomList');
+  };
+
+  // Leave DM chat
+  const handleLeaveDm = () => {
+    setActiveDmRecipient(null);
   };
 
   return (
@@ -101,7 +118,9 @@ function App() {
         ) : showProfile ? (
           <>
             <div className="nav-bar">
-              <button onClick={() => setShowProfile(false)}>Back to Chat</button>
+              <button onClick={() => setShowProfile(false)}>
+                Back to Chat
+              </button>
               <button onClick={handleLogout}>Logout</button>
             </div>
             <ProfilePage />
@@ -114,11 +133,23 @@ function App() {
                 <button onClick={handleLogout}>Logout</button>
               </div>
             </div>
-            {view === 'roomList' && (
-              <ChatRoomList onSelectRoom={handleSelectRoom} />
-            )}
-            {view === 'chat' && selectedRoom && (
+
+            {/* If DM chat active, show it */}
+            {activeDmRecipient ? (
+              <DmChat recipient={activeDmRecipient} onLeave={handleLeaveDm} />
+            ) : null}
+
+            {/* If group chat room active, show it */}
+            {selectedRoom ? (
               <Chat room={selectedRoom} onLeave={handleLeaveRoom} />
+            ) : null}
+
+            {/* If no chat active, show room list (pass handlers for selecting room or starting DM) */}
+            {!selectedRoom && !activeDmRecipient && (
+              <ChatRoomList
+                onSelectRoom={handleSelectRoom}
+                onStartDm={handleStartDm}
+              />
             )}
           </>
         )}
