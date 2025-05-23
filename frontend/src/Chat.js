@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_URL = 'http://localhost:80';
+const API_URL = "http://localhost:80";
 
 export default function Chat({ room, onLeave }) {
   const [messages, setMessages] = useState([]);
@@ -20,10 +20,10 @@ export default function Chat({ room, onLeave }) {
         if (token) {
           const response = await fetch(`${API_URL}/api/user/profile`, {
             headers: {
-              Authorization: `Bearer ${token}`
-            }
+              Authorization: `Bearer ${token}`,
+            },
           });
-          
+
           if (response.ok) {
             const data = await response.json();
             setUsername(data.username);
@@ -31,7 +31,7 @@ export default function Chat({ room, onLeave }) {
           } else {
             // Fallback to token decoding if profile fetch fails
             try {
-              const payload = JSON.parse(atob(token.split('.')[1]));
+              const payload = JSON.parse(atob(token.split(".")[1]));
               setUsername(payload.unique_name || payload.name || "");
             } catch (error) {
               console.error("Failed to decode token:", error);
@@ -42,7 +42,7 @@ export default function Chat({ room, onLeave }) {
         console.error("Failed to fetch user profile:", err);
       }
     };
-    
+
     fetchUserProfile();
   }, []);
 
@@ -52,7 +52,7 @@ export default function Chat({ room, onLeave }) {
 
     // Mark that we've attempted a connection to prevent duplicates
     connectionAttempted.current = true;
-    
+
     // Reset for each new room
     localMessagesRef.current = new Set();
     setMessages([]);
@@ -61,39 +61,55 @@ export default function Chat({ room, onLeave }) {
       socketRef.current.close();
     }
 
-    const wsUrl = `ws://${API_URL.replace("http://", "")}/ws/chat?token=${token}&roomId=${room.id}`;
+    const wsUrl = `ws://${API_URL.replace(
+      "http://",
+      ""
+    )}/ws/chat?access_token=${token}&roomId=${room.id}`;
     socketRef.current = new WebSocket(wsUrl);
+
+    let heartbeatInterval = null;
 
     socketRef.current.onopen = () => {
       console.log(`Connected to room: ${room.name}`);
-      
+
       // Add system message about joining
-      setMessages([{
-        type: 'system',
-        text: `You joined the room`,
-        timestamp: new Date()
-      }]);
+      setMessages([
+        {
+          type: "system",
+          text: `You joined the room`,
+          timestamp: new Date(),
+        },
+      ]);
+      heartbeatInterval = setInterval(() => {
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send("__ping__");
+        }
+      }, 25000);
     };
 
     socketRef.current.onmessage = (event) => {
       try {
         const messageData = JSON.parse(event.data);
 
-        if (messageData.type === 'history') {
+        if (messageData.type === "history") {
           setMessages(messageData.messages || []);
         } else {
-          if (messageData.sender === username &&
-              messageData.type !== 'system' &&
-              messageData.text) {
-            const messageKey = `${messageData.sender}:${messageData.text}:${new Date(messageData.timestamp).getTime()}`;
+          if (
+            messageData.sender === username &&
+            messageData.type !== "system" &&
+            messageData.text
+          ) {
+            const messageKey = `${messageData.sender}:${
+              messageData.text
+            }:${new Date(messageData.timestamp).getTime()}`;
             if (localMessagesRef.current.has(messageKey)) {
               return;
             }
           }
-          setMessages(prev => [...prev, messageData]);
+          setMessages((prev) => [...prev, messageData]);
         }
       } catch (err) {
-        setMessages(prev => [...prev, { text: event.data }]);
+        setMessages((prev) => [...prev, { text: event.data }]);
       }
     };
 
@@ -103,32 +119,27 @@ export default function Chat({ room, onLeave }) {
 
     socketRef.current.onclose = () => {
       console.log("WebSocket disconnected");
+      clearInterval(heartbeatInterval);
     };
 
     return () => {
       if (socketRef.current) {
         socketRef.current.close();
       }
+      clearInterval(heartbeatInterval);
       connectionAttempted.current = false;
     };
   }, [room, username]);
 
   useEffect(() => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
   const sendMessage = () => {
     if (input.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
-      const localMessage = {
-        text: input,
-        sender: username,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, localMessage]);
-      const messageKey = `${localMessage.sender}:${localMessage.text}:${localMessage.timestamp.getTime()}`;
-      localMessagesRef.current.add(messageKey);
       socketRef.current.send(input);
       setInput("");
     }
@@ -140,7 +151,7 @@ export default function Chat({ room, onLeave }) {
     }
     connectionAttempted.current = false;
     onLeave();
-  }
+  };
 
   if (!room) {
     return <div>No chat room selected</div>;
@@ -153,31 +164,38 @@ export default function Chat({ room, onLeave }) {
           <h2>{room.name}</h2>
           {room.description && <p className="chat-desc">{room.description}</p>}
         </div>
-        <button className="leave-btn" onClick={handleLeave}>Leave Room</button>
+        <button className="leave-btn" onClick={handleLeave}>
+          Leave Room
+        </button>
       </div>
       <div className="chat-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
-          <div className="no-messages">No messages yet. Be the first to say something!</div>
+          <div className="no-messages">
+            No messages yet. Be the first to say something!
+          </div>
         ) : (
           messages.map((msg, i) => (
-            <div key={i} className={msg.type === 'system' ? 'system-message' : 'message'}>
-              {msg.type === 'system' ? (
+            <div
+              key={i}
+              className={msg.type === "system" ? "system-message" : "message"}
+            >
+              {msg.type === "system" ? (
                 <span>{msg.text}</span>
               ) : (
                 <>
                   <div className="message-header">
                     {msg.profileImage ? (
-                      <img 
-                        src={`${API_URL}${msg.profileImage}`} 
-                        alt="Profile" 
-                        className="profile-thumbnail" 
+                      <img
+                        src={`${API_URL}${msg.profileImage}`}
+                        alt="Profile"
+                        className="profile-thumbnail"
                       />
                     ) : (
                       <div className="profile-initial">
-                        {msg.sender?.charAt(0)?.toUpperCase() || '?'}
+                        {msg.sender?.charAt(0)?.toUpperCase() || "?"}
                       </div>
                     )}
-                    <span className="sender">{msg.sender || 'Anonymous'}</span>
+                    <span className="sender">{msg.sender || "Anonymous"}</span>
                     {msg.timestamp && (
                       <span className="timestamp">
                         {new Date(msg.timestamp).toLocaleTimeString()}

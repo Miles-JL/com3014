@@ -9,6 +9,8 @@ using ChatroomService.Data;
 public class ChatHandler
 {
     private readonly IServiceProvider _serviceProvider;
+    private static readonly Dictionary<int, List<WebSocket>> RoomSockets = new();
+    private static readonly object RoomLock = new();
 
     public ChatHandler(IServiceProvider serviceProvider)
     {
@@ -23,7 +25,7 @@ public class ChatHandler
             return;
         }
 
-        var token = context.Request.Query["token"].ToString();
+        var token = context.Request.Query["access_token"].ToString();
         if (string.IsNullOrEmpty(token))
         {
             context.Response.StatusCode = 401;
@@ -64,99 +66,110 @@ public class ChatHandler
             return;
         }
 
-        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         await HandleChatAsync(webSocket, username, profileImage, roomId);
     }
 
-    private static readonly Dictionary<int, List<WebSocket>> RoomSockets = new();
-
     private async Task HandleChatAsync(WebSocket webSocket, string username, string profileImage, int roomId)
     {
-        if (!RoomSockets.ContainsKey(roomId))
-            RoomSockets[roomId] = new List<WebSocket>();
+        lock (RoomLock)
+        {
+            if (!RoomSockets.ContainsKey(roomId))
+                RoomSockets[roomId] = new List<WebSocket>();
+            RoomSockets[roomId].Add(webSocket);
+        }
 
-        RoomSockets[roomId].Add(webSocket);
-
-        // Send system message about user joining
+        // Notify join
         var joinMessage = new
         {
-            Type = "system",
-            Text = $"{username} joined the room",
-            Timestamp = DateTime.UtcNow
+            type = "system",
+            text = $"{username} joined the room",
+            timestamp = DateTime.UtcNow
         };
-        var joinJson = JsonSerializer.Serialize(joinMessage);
-
-        var tasks = RoomSockets[roomId]
-            .Where(s => s.State == WebSocketState.Open)
-            .Select(s => s.SendAsync(
-                new ArraySegment<byte>(Encoding.UTF8.GetBytes(joinJson)),
-                WebSocketMessageType.Text,
-                true,
-                CancellationToken.None
-            ));
-
-        await Task.WhenAll(tasks);
+        await BroadcastToRoom(roomId, JsonSerializer.Serialize(joinMessage));
 
         var buffer = new byte[1024 * 4];
         var closeReceived = false;
+        var heartbeatInterval = TimeSpan.FromSeconds(30);
+        var receiveTask = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+        var heartbeatTimer = Task.Delay(heartbeatInterval);
 
         while (!closeReceived && webSocket.State == WebSocketState.Open)
         {
-            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            var completed = await Task.WhenAny(receiveTask, heartbeatTimer);
 
+            // Timeout reached → close due to inactivity
+            if (completed == heartbeatTimer)
+            {
+                // Optionally: send a system message about timeout
+                break;
+            }
+
+            var result = await receiveTask;
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 closeReceived = true;
                 break;
             }
 
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var chatMessage = new
-                {
-                    Sender = username,
-                    ProfileImage = profileImage,
-                    Text = message,
-                    Timestamp = DateTime.UtcNow
-                };
-                var json = JsonSerializer.Serialize(chatMessage);
+            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
 
-                tasks = RoomSockets[roomId]
-                    .Where(s => s.State == WebSocketState.Open)
-                    .Select(s => s.SendAsync(
-                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
-                        WebSocketMessageType.Text,
-                        true,
-                        CancellationToken.None
-                    ));
+            // Reset heartbeat timer on any message
+            heartbeatTimer = Task.Delay(heartbeatInterval);
 
-                await Task.WhenAll(tasks);
+            // Ignore ping messages
+            if (message == "__ping__")
+            {
+                receiveTask = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                continue;
             }
 
-            // Send system message about user leaving
-            var leaveMessage = new
+            var chatMessage = new
             {
-                Type = "system",
-                Text = $"{username} left the room",
-                Timestamp = DateTime.UtcNow
+                sender = username,
+                profileImage = profileImage,
+                text = message,
+                timestamp = DateTime.UtcNow
             };
-            var leaveJson = JsonSerializer.Serialize(leaveMessage);
+            await BroadcastToRoom(roomId, JsonSerializer.Serialize(chatMessage));
 
-            RoomSockets[roomId].Remove(webSocket);
-
-            tasks = RoomSockets[roomId]
-                .Where(s => s.State == WebSocketState.Open)
-                .Select(s => s.SendAsync(
-                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(leaveJson)),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None
-                ));
-
-            await Task.WhenAll(tasks);
-
-            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
+            receiveTask = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
         }
+
+        // Remove socket from room
+        lock (RoomLock)
+        {
+            if (RoomSockets.ContainsKey(roomId))
+                RoomSockets[roomId].Remove(webSocket);
+        }
+
+        // Notify leave
+        var leaveMessage = new
+        {
+            type = "system",
+            text = $"{username} left the room",
+            timestamp = DateTime.UtcNow
+        };
+        await BroadcastToRoom(roomId, JsonSerializer.Serialize(leaveMessage));
+
+        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None);
     }
 
-    
+    private static async Task BroadcastToRoom(int roomId, string json)
+    {
+        List<WebSocket> sockets;
+        lock (RoomLock)
+        {
+            if (!RoomSockets.ContainsKey(roomId)) return;
+            // Remove closed sockets
+            RoomSockets[roomId].RemoveAll(s => s.State != WebSocketState.Open);
+            sockets = RoomSockets[roomId].ToList();
+        }
 
+        var bytes = Encoding.UTF8.GetBytes(json);
+        var tasks = sockets.Select(s =>
+            s.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None)
+        );
+        await Task.WhenAll(tasks);
+    }
+}
