@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -7,6 +8,23 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Add Health Checks
+builder.Services.AddHealthChecks()
+    .AddCheck("storage_health", () => 
+    {
+        try
+        {
+            var tempFile = Path.Combine(Path.GetTempPath(), $"healthcheck_{Guid.NewGuid()}.tmp");
+            File.WriteAllText(tempFile, "healthcheck");
+            File.Delete(tempFile);
+            return HealthCheckResult.Healthy("Storage is accessible");
+        }
+        catch (Exception ex)
+        {
+            return HealthCheckResult.Unhealthy("Storage is not accessible", ex);
+        }
+    });
 
 // Configure Swagger with JWT Bearer Authentication
 builder.Services.AddSwaggerGen(c =>
@@ -91,6 +109,28 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Map health check endpoint
+app.MapHealthChecks("/health", new()
+{
+    AllowCachingResponses = false,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                exception = e.Value.Exception?.Message
+            })
+        });
+        await context.Response.WriteAsync(result);
+    }
+});
 
 app.MapControllers();
 
