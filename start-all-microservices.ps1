@@ -10,7 +10,9 @@ $services = @(
     @{ name = "message-service";      port = 5199 },
     @{ name = "realtime-service";     port = 5200 },
     @{ name = "notification-service"; port = 5201 },
-    @{ name = "api-gateway";      port = 5247 }
+    @{ name = "api-gateway";          port = 5247 },
+    @{ name = "api-gateway";          port = 5248 },
+    @{ name = "api-gateway";          port = 5249 }
 )
 
 
