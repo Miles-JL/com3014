@@ -48,10 +48,34 @@ export default function ProfilePage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     setUpdateSuccess(false);
+    setError('');
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put(
+      
+      // Only update username if it has changed
+      if (newUsername !== profile.username) {
+        // First update username in auth service
+        const authResponse = await axios.post(
+          'http://localhost:5106/api/Auth/update-username',
+          { newUsername },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            withCredentials: true
+          }
+        );
+        
+        if (authResponse.data && authResponse.data.token) {
+          // Update the stored token with the new one containing the updated username
+          localStorage.setItem('token', authResponse.data.token);
+        }
+      }
+      
+      // Then update the rest of the profile in the user service
+      const updateResponse = await axios.put(
         `${API_URL}/api/user/profile`,
         {
           username: newUsername !== profile.username ? newUsername : undefined,
@@ -64,41 +88,54 @@ export default function ProfilePage() {
         }
       );
       
-      // Update token with new username to ensure proper authentication
-      if (newUsername !== profile.username) {
-        // Re-authenticate to get a fresh token with the new username
-        try {
-          // Get decoded token to extract password (if available)
-          const decodedToken = JSON.parse(atob(token.split('.')[1]));
-          
-          // Request a new token
-          const refreshResponse = await axios.post(`${API_URL}/api/auth/refresh-token`, {
-            oldUsername: profile.username,
-            newUsername: newUsername
-          }, {
+      // If we get here, both updates were successful
+      
+      // Sync with Auth service to ensure data consistency
+      try {
+        await axios.post(
+          `${API_URL}/api/user/sync-with-auth`,
+          {},
+          {
             headers: {
               Authorization: `Bearer ${token}`
             }
-          });
-          
-          if (refreshResponse.data.token) {
-            localStorage.setItem('token', refreshResponse.data.token);
           }
-        } catch (refreshErr) {
-          console.error('Error refreshing token:', refreshErr);
-          // Continue anyway as the profile update succeeded
-        }
+        );
+      } catch (syncError) {
+        console.warn('Failed to sync with auth service:', syncError);
+        // Non-critical error, continue with the update
       }
       
       setUpdateSuccess(true);
       setTimeout(() => setUpdateSuccess(false), 3000);
       
       // Update local profile data
-      setProfile(prev => ({...prev, username: newUsername}));
+      setProfile(prev => ({
+        ...prev, 
+        username: newUsername,
+        profileDescription: updateResponse.data.profileDescription || prev.profileDescription
+      }));
       
     } catch (err) {
       console.error('Error updating profile:', err);
-      setError('Failed to update profile. Username might already be taken.');
+      if (err.response) {
+        // Handle HTTP errors
+        if (err.response.status === 400) {
+          setError('Invalid request. ' + (err.response.data?.message || 'Please check your input.'));
+        } else if (err.response.status === 401) {
+          setError('Session expired. Please log in again.');
+        } else if (err.response.status === 409) {
+          setError('Username is already taken. Please choose another one.');
+        } else {
+          setError(`Server error (${err.response.status}): ${err.response.data?.message || 'Please try again later.'}`);
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('Unable to connect to the server. Please check your connection.');
+      } else {
+        // Something happened in setting up the request
+        setError('An unexpected error occurred. Please try again.');
+      }
     }
   };
   

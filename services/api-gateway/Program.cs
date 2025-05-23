@@ -70,6 +70,12 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+app.MapGet("/", (HttpContext ctx) =>
+{
+    var port = ctx.Connection.LocalPort;
+    return $"API Gateway is running on port {port}!";
+});
+
 // Configure middleware pipeline
 if (app.Environment.IsDevelopment())
 {

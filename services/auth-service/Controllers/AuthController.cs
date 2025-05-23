@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System;
+using System.Security.Claims;
 using AuthService.Data;
 
 namespace AuthService.Controllers
@@ -126,6 +127,156 @@ namespace AuthService.Controllers
             }
 
             return Ok(new { token });
+        }
+
+        [HttpPost("update-user")]
+        [Authorize]
+        public async Task<IActionResult> UpdateUser([FromBody] UserUpdateRequest request)
+        {
+            try
+            {
+                // Get user ID from the JWT token claims
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return Unauthorized("Invalid user ID claim");
+                }
+
+                var user = await _db.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return NotFound("User not found");
+                }
+
+
+                // Update user properties if they are provided in the request
+                if (!string.IsNullOrEmpty(request.Username) && request.Username != user.Username)
+                {
+                    if (await _db.Users.AnyAsync(u => u.Username == request.Username && u.Id != userId))
+                    {
+                        return BadRequest("Username is already taken");
+                    }
+                    user.Username = request.Username;
+                }
+
+                if (request.ProfileImage != null)
+                {
+                    user.ProfileImage = request.ProfileImage;
+                }
+
+                if (request.ProfileDescription != null)
+                {
+                    user.ProfileDescription = request.ProfileDescription;
+                }
+
+                if (request.Location != null)
+                {
+                    user.Location = request.Location;
+                }
+
+                await _db.SaveChangesAsync();
+
+                // Sync with User Service
+                try
+                {
+                    var syncPayload = new
+                    {
+                        Id = user.Id,
+                        Username = user.Username,
+                        ProfileImage = user.ProfileImage,
+                        ProfileDescription = user.ProfileDescription,
+                        Location = user.Location
+                    };
+
+                    using var httpClient = new HttpClient();
+                    await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+                    _logger.LogInformation("Successfully synced user data with User Service");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to sync user data with User Service. Continuing with auth update.");
+                }
+
+                // Generate new token if username was updated
+                string? token = null;
+                if (!string.IsNullOrEmpty(request.Username) && request.Username != user.Username)
+                {
+                    token = _jwt.GenerateToken(user);
+                }
+
+
+                return Ok(new 
+                { 
+                    Success = true,
+                    Token = token,
+                    User = new 
+                    {
+                        Id = user.Id,
+                        Username = user.Username,
+                        ProfileImage = user.ProfileImage,
+                        ProfileDescription = user.ProfileDescription,
+                        Location = user.Location
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating user data in Auth Service");
+                return StatusCode(500, "An error occurred while updating user data");
+            }
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            try
+            {
+                // Get user ID from the JWT token claims
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return Unauthorized("Invalid user ID claim");
+                }
+
+                var user = await _db.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return NotFound("User not found");
+                }
+
+                // Verify current password
+                if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                {
+                    return BadRequest("Current password is incorrect");
+                }
+
+                // Update to new password
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+                await _db.SaveChangesAsync();
+
+                _logger.LogInformation("Password changed successfully for user ID: {UserId}", userId);
+                return Ok(new { Success = true, Message = "Password changed successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing password");
+                return StatusCode(500, new { Success = false, Message = "An error occurred while changing password" });
+            }
+        }
+
+        public class ChangePasswordRequest
+        {
+            public string CurrentPassword { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
+        public class UserUpdateRequest
+        {
+            public string? Username { get; set; }
+            public string? ProfileImage { get; set; }
+            public string? ProfileDescription { get; set; }
+            public string? Location { get; set; }
         }
     }
 }

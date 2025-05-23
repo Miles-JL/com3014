@@ -1,0 +1,4 @@
+Username,Password,ProfileImage,ProfileDescription,Location,IsAdmin
+alice,alicepassword,alice.png,"Hi, I'm Alice!","London",false
+bob,bobpassword,bob.jpg,"Bob here.","New York",false
+admin,admin123,admin.png,"System Administrator","HQ",true
