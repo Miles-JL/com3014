@@ -11,6 +11,7 @@ export default function DMChat({ recipient, onLeave }) {
   const [profileImage, setProfileImage] = useState("");
   const localMessagesRef = useRef(new Set());
   const connectionAttempted = useRef(false);
+  let reconnectTimeout = null;
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -51,7 +52,6 @@ export default function DMChat({ recipient, onLeave }) {
 
     connectionAttempted.current = true;
     localMessagesRef.current = new Set();
-    setMessages([]);
     if (socketRef.current) socketRef.current.close();
 
     const wsUrl = `ws://${API_URL.replace(
@@ -64,14 +64,22 @@ export default function DMChat({ recipient, onLeave }) {
 
     socketRef.current.onopen = () => {
       console.log(`Connected for DM with ${recipient.username}`);
+      clearInterval(heartbeatInterval);
+      clearTimeout(reconnectTimeout);
 
-      setMessages([
-        {
-          type: "system",
-          text: `You started a DM with ${recipient.username}`,
-          timestamp: new Date(),
-        },
-      ]);
+      setMessages((prev) => {
+        // Only add the system message if there are no existing messages
+        if (prev.length === 0) {
+          return [
+            {
+              type: "system",
+              text: `You started a DM with ${recipient.username}`,
+              timestamp: new Date(),
+            },
+          ];
+        }
+        return prev;
+      });
 
       // Start heartbeat
       heartbeatInterval = setInterval(() => {
@@ -106,7 +114,7 @@ export default function DMChat({ recipient, onLeave }) {
           messageData.type !== "system" &&
           messageData.text
         ) {
-          const messageKey = `${messageData.sender}:${
+          const messageKey = `${messageData.sender}:$${
             messageData.text
           }:${new Date(messageData.timestamp).getTime()}`;
           if (localMessagesRef.current.has(messageKey)) return;
@@ -123,8 +131,17 @@ export default function DMChat({ recipient, onLeave }) {
     };
 
     socketRef.current.onclose = () => {
-      console.log("WebSocket disconnected");
+      console.log("WebSocket disconnected. Retrying in 5 seconds...");
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "system",
+          text: "Attempting to reconnect...",
+          timestamp: new Date(),
+        },
+      ]);
       clearInterval(heartbeatInterval);
+      reconnectTimeout = setTimeout(connectWebSocket, 5000);
     };
 
     return () => {
@@ -133,9 +150,54 @@ export default function DMChat({ recipient, onLeave }) {
       }
       clearInterval(heartbeatInterval);
       connectionAttempted.current = false;
+      clearTimeout(reconnectTimeout);
     };
   }, [recipient, username]);
-  
+
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token || !recipient) return;
+
+        const response = await fetch(
+          `${API_URL}/api/message/history?recipientId=${recipient.id}&limit=50`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const history = await response.json();
+          const formattedHistory = history.map((msg) => ({
+            ...msg,
+            text: msg.content, // Map 'content' to 'text'
+          }));
+
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((msg) => msg.id));
+            const uniqueHistory = formattedHistory.filter(
+              (msg) => !existingIds.has(msg.id)
+            );
+            const systemMessages = prev.filter((msg) => msg.type === "system");
+            return [
+              ...systemMessages,
+              ...uniqueHistory,
+              ...prev.filter((msg) => msg.type !== "system"),
+            ];
+          });
+        } else {
+          console.error("Failed to fetch chat history", response.statusText);
+        }
+      } catch (err) {
+        console.error("Error fetching chat history:", err);
+      }
+    };
+
+    fetchChatHistory();
+  }, [recipient]);
 
   useEffect(() => {
     if (messagesContainerRef.current) {
@@ -182,6 +244,79 @@ export default function DMChat({ recipient, onLeave }) {
     connectionAttempted.current = false;
     onLeave();
   };
+
+  function connectWebSocket() {
+    const token = localStorage.getItem("token");
+    if (!token || !recipient) return;
+
+    const wsUrl = `ws://${API_URL.replace(
+      "http://",
+      ""
+    )}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
+    socketRef.current = new WebSocket(wsUrl);
+
+    let heartbeatInterval = null;
+
+    socketRef.current.onopen = () => {
+      console.log(`Connected for DM with ${recipient.username}`);
+      clearInterval(heartbeatInterval);
+      clearTimeout(reconnectTimeout);
+
+      setMessages((prev) => {
+        if (prev.length === 0) {
+          return [
+            {
+              type: "system",
+              text: `You started a DM with ${recipient.username}`,
+              timestamp: new Date(),
+            },
+          ];
+        }
+        return prev;
+      });
+
+      heartbeatInterval = setInterval(() => {
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(
+            JSON.stringify({
+              senderId: getUserIdFromToken(token),
+              recipientId: recipient.id,
+              text: "__ping__",
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+      }, 25000);
+    };
+
+    socketRef.current.onmessage = (event) => {
+      try {
+        const messageData = JSON.parse(event.data);
+        if (messageData.text === "__ping__") return;
+        setMessages((prev) => [...prev, messageData]);
+      } catch (err) {
+        console.error("Error parsing WebSocket message:", err);
+      }
+    };
+
+    socketRef.current.onclose = () => {
+      console.log("WebSocket disconnected. Retrying in 5 seconds...");
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "system",
+          text: "Attempting to reconnect...",
+          timestamp: new Date(),
+        },
+      ]);
+      clearInterval(heartbeatInterval);
+      reconnectTimeout = setTimeout(connectWebSocket, 5000);
+    };
+
+    socketRef.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+  }
 
   if (!recipient) {
     return <div>Select a user to DM</div>;
