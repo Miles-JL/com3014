@@ -4,10 +4,9 @@ import ProfilePage from "./ProfilePage";
 import ChatRoomList from "./ChatRoomList";
 import Chat from "./Chat";
 import DmChat from "./dmChat";
-import NotificationBell from "./components/NotificationBell";
 import "./App.css";
 
-const API_URL = 'http://localhost:80';
+const API_URL = 'http://localhost:5247'; // API Gateway port
 
 function App() {
   const [username, setUsername] = useState("");
@@ -21,6 +20,94 @@ function App() {
   // Remove threadId because backend doesn't track it, just store recipient user object:
   const [activeDmRecipient, setActiveDmRecipient] = useState(null);
 
+  // Set up WebSocket for notifications when user is authenticated
+  useEffect(() => {
+    if (!token || !currentUser?.id) return;
+
+    // Request notification permission
+    if ('Notification' in window) {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          console.log('Notification permission granted');
+        } else {
+          console.warn('Notification permission denied');
+        }
+      });
+    }
+  
+  useEffect(() => {
+      // Initialize notification service
+      notificationService.init().then(initialized => {
+        if (initialized) {
+          console.log('Notification service initialized');
+        }
+      });
+  
+      // Request permission on user interaction
+      const handleFirstInteraction = () => {
+        notificationService.requestNotificationPermission().then(granted => {
+          if (granted) {
+            notificationService.subscribeUser().then(subscribed => {
+              if (subscribed) {
+                console.log('User subscribed to push notifications');
+              }
+            });
+          }
+        });
+        document.removeEventListener('click', handleFirstInteraction);
+        document.removeEventListener('keydown', handleFirstInteraction);
+      };
+  
+      document.addEventListener('click', handleFirstInteraction);
+      document.addEventListener('keydown', handleFirstInteraction);
+  
+      return () => {
+        document.removeEventListener('click', handleFirstInteraction);
+        document.removeEventListener('keydown', handleFirstInteraction);
+      };
+    }, []);
+    // Set up WebSocket connection
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/notification?access_token=${token}`);
+
+    ws.onopen = () => {
+      console.log('Connected to notification service');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const notification = JSON.parse(event.data);
+        console.log('Received notification:', notification);
+
+        // Show browser notification
+        if (Notification.permission === 'granted') {
+          new Notification(notification.title || 'New Notification', {
+            body: notification.message,
+            icon: notification.icon || '/logo192.png'
+          });
+        }
+      } catch (error) {
+        console.error('Error processing notification:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('Disconnected from notification service');
+    };
+
+    // Clean up WebSocket on unmount
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [token, currentUser?.id]);
+
+  // Fetch current user when token changes
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -145,7 +232,6 @@ function App() {
           <div className="app-content">
             <div className="nav-bar">
               <div className="nav-actions">
-                <NotificationBell token={token} userId={currentUser?.id} />
                 <button onClick={() => setShowProfile(true)}>My Profile</button>
                 <button onClick={handleLogout}>Logout</button>
               </div>

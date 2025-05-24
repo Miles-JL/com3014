@@ -25,12 +25,12 @@ public class NotificationService : INotificationService
     {
         var notification = new Notification
         {
-            RecipientId = dto.RecipientId,
-            Type = dto.Type,
+            UserId = dto.RecipientId.ToString(),
+            Title = dto.Type,
             Message = dto.Message,
-            Metadata = dto.Metadata,
             IsRead = false,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            Metadata = dto.Metadata
         };
 
         _context.Notifications.Add(notification);
@@ -47,7 +47,7 @@ public class NotificationService : INotificationService
     public async Task<IEnumerable<NotificationDto>> GetUnreadNotificationsAsync(int userId)
     {
         var notifications = await _context.Notifications
-            .Where(n => n.RecipientId == userId && !n.IsRead)
+            .Where(n => n.UserId == userId.ToString() && !n.IsRead)
             .OrderByDescending(n => n.Timestamp)
             .ToListAsync();
 
@@ -57,23 +57,20 @@ public class NotificationService : INotificationService
     public async Task MarkAsReadAsync(int notificationId, int userId)
     {
         var notification = await _context.Notifications
-            .FirstOrDefaultAsync(n => n.Id == notificationId && n.RecipientId == userId);
+            .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId.ToString());
 
-        if (notification == null)
+        if (notification != null)
         {
-            _logger.LogWarning("Notification {NotificationId} not found for user {UserId}", notificationId, userId);
-            return;
+            notification.IsRead = true;
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Marked notification {NotificationId} as read for user {UserId}", notificationId, userId);
         }
-
-        notification.IsRead = true;
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("Marked notification {NotificationId} as read for user {UserId}", notificationId, userId);
     }
     
     public async Task MarkAllAsReadAsync(int userId)
     {
         var unreadNotifications = await _context.Notifications
-            .Where(n => n.RecipientId == userId && !n.IsRead)
+            .Where(n => n.UserId == userId.ToString() && !n.IsRead)
             .ToListAsync();
 
         foreach (var notification in unreadNotifications)
@@ -91,10 +88,10 @@ public class NotificationService : INotificationService
     private static NotificationDto MapToDto(Notification notification) => new()
     {
         Id = notification.Id,
-        Type = notification.Type,
-        Message = notification.Message,
+        Title = notification.Title,
+        Body = notification.Message,
+        Url = notification.Url,
         IsRead = notification.IsRead,
-        Timestamp = notification.Timestamp,
-        Metadata = notification.Metadata
+        Timestamp = notification.Timestamp
     };
 }

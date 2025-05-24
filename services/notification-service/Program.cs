@@ -3,14 +3,50 @@ using notification_service.Data;
 using notification_service.Services;
 using notification_service.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Npgsql;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Any;
 using System.Net.WebSockets;
 using WebSocketManager = notification_service.Services.WebSocketManager;
+using WebPush;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register push notification services
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Configure WebPush
+var vapidSection = builder.Configuration.GetSection("Vapid");
+var publicKey = vapidSection["PublicKey"];
+var privateKey = vapidSection["PrivateKey"];
+var subject = vapidSection["Subject"] ?? "mailto:your-email@example.com";
+
+if (string.IsNullOrEmpty(publicKey) || string.IsNullOrEmpty(privateKey))
+{
+    throw new InvalidOperationException("VAPID configuration is missing. Please configure Vapid:PublicKey and Vapid:PrivateKey in appsettings.json");
+}
+
+// Register VAPID details
+builder.Services.AddSingleton(new VapidDetails(subject, publicKey, privateKey));
+builder.Services.AddScoped<WebPushClient>();
+
+// Add CORS policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+
+
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -136,17 +172,29 @@ using (var scope = app.Services.CreateScope())
         {
             logger.LogInformation("Successfully connected to the database.");
             
-            // Get pending migrations
-            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
-            if (pendingMigrations.Any())
+            // Check if database exists and apply migrations if needed
+            try 
             {
-                logger.LogInformation("Applying pending migrations...");
-                await context.Database.MigrateAsync();
-                logger.LogInformation("Migrations applied successfully.");
+                // This will create the database if it doesn't exist
+                await context.Database.EnsureCreatedAsync();
+                
+                // Get pending migrations
+                var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+                if (pendingMigrations.Any())
+                {
+                    logger.LogInformation("Applying pending migrations...");
+                    await context.Database.MigrateAsync();
+                    logger.LogInformation("Migrations applied successfully.");
+                }
+                else
+                {
+                    logger.LogInformation("No pending migrations to apply.");
+                }
             }
-            else
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P07") 
             {
-                logger.LogInformation("No pending migrations to apply.");
+                // Table already exists, which is fine
+                logger.LogWarning("Table already exists: {TableName}", ex.TableName);
             }
         }
         else
@@ -199,6 +247,7 @@ app.UseWebSockets(webSocketOptions);
 // Authentication and Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
 
 // Add WebSocket handling middleware
 app.Use(async (context, next) =>

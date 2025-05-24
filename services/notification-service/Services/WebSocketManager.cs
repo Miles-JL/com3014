@@ -214,11 +214,11 @@ public class WebSocketManager : IWebSocketManager
             var notificationDto = new NotificationDto
             {
                 Id = notification.Id,
-                Type = notification.Type,
-                Message = notification.Message,
+                Title = notification.Title,
+                Body = notification.Message,
+                Url = notification.Url,
                 IsRead = notification.IsRead,
-                Timestamp = notification.Timestamp,
-                Metadata = notification.Metadata
+                Timestamp = notification.Timestamp
             };
 
             message = JsonSerializer.Serialize(new
