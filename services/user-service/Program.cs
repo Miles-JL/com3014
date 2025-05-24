@@ -148,13 +148,36 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Clear db in development mode
-if (app.Environment.IsDevelopment())
+// Initialise and seed database
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var isDevelopment = app.Environment.IsDevelopment();
+    
+    try
     {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.SeedAsync(true);
+        var db = services.GetRequiredService<AppDbContext>();
+        
+        // In development, we'll clear and recreate the database
+        if (isDevelopment)
+        {
+            logger.LogInformation("Development environment detected. Recreating database...");
+            await db.Database.EnsureDeletedAsync();
+        }
+        
+        // Ensure database is created and apply any pending migrations
+        await db.Database.EnsureCreatedAsync();
+        
+        logger.LogInformation("Starting database seeding...");
+        await db.SeedAsync(isDevelopment);
+        
+        logger.LogInformation("Database seeding completed successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding the database");
+        // Don't rethrow to allow the application to start even if seeding fails
     }
 }
 

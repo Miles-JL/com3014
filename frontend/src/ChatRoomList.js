@@ -222,40 +222,58 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
         </div>
       </div>
 
-      <div className="user-search">
-        <input
-          type="text"
-          placeholder="Search users to DM..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {isSearching && <div>Searching...</div>}
+      <div className="chat-room-list">
+        <div className="chat-header">
+          <h2>Direct Messages</h2>
+        </div>
+        
+        <div className="user-search-container">
+          <div className="search-input-container">
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <span className="search-icon">🔍</span>
+            {isSearching && <div className="search-loading">Searching...</div>}
+          </div>
 
-        {searchResults.length > 0 && (
-          <ul className="search-results">
-            {searchResults.map((user) => (
-              <li key={user.id} className="search-result-item">
-                <div className="user-result-info">
-                  {user.profileImage ? (
-                    <img
-                      src={`${API_URL}${user.profileImage}`}
-                      alt={user.username}
-                    />
-                  ) : (
-                    <div className="no-image-small">
-                      {user.username.charAt(0)}
-                    </div>
-                  )}
-                  <span>{user.username}</span>
+          {searchResults.length > 0 && (
+            <div className="search-results">
+              {searchResults.map((user) => (
+                <div key={user.id} className="search-result-item">
+                  <div className="user-avatar">
+                    {user.profileImage ? (
+                      <img
+                        src={user.profileImage}
+                        alt={user.username}
+                        className="user-avatar-img"
+                      />
+                    ) : (
+                      <div className="avatar-placeholder">
+                        {user.username.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="user-info">
+                    <span className="username">{user.username}</span>
+                  </div>
+                  <button 
+                    className="dm-button"
+                    onClick={() => onStartDm(user)}
+                  >
+                    DM
+                  </button>
                 </div>
-                <button onClick={() => onStartDm(user)}>DM</button>
-              </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="chat-room-list">
+      <div className="chat-room-list" style={{ marginTop: '20px' }}>
         <div className="chat-header">
           <h2>Available Chat Rooms</h2>
           <div className="chat-actions">
