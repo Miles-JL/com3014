@@ -1,4 +1,7 @@
 Username,Password,ProfileImage,ProfileDescription,Location,IsAdmin
-alice,alicepassword,alice.png,"Hi, I'm Alice!","London",false
-bob,bobpassword,bob.jpg,"Bob here.","New York",false
-admin,admin123,admin.png,"System Administrator","HQ",true
+alice,alicepassword,http://localhost:5250/u/alice.gif,"It's no use going back to yesterday, because I was a different person then.","London",false
+bob,bobpassword,http://localhost:5250/u/bob.gif,"Can we fix it?","Altrincham",false
+charlie,charliepassword,http://localhost:5250/u/charlie.gif,"Don't. Tread. On me","New York",false
+dave,davepassword,http://localhost:5250/u/dave.gif,"Send me the location","London",false
+eve,evepassword,http://localhost:5250/u/eve.gif,"Evelyn Parker, not the most important thing you're looking for, is she? I can smell your fear, you're afraid of something else.","Mississippi",false
+admin,adminpassword,http://localhost:5250/u/admin.jpg,"System Administrator","HQ",true

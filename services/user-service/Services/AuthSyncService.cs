@@ -28,9 +28,9 @@ namespace UserService.Services
             var authServicePayload = new AuthUserUpdateRequest
             {
                 Username = string.IsNullOrEmpty(userProfileUpdate.Username) ? null : userProfileUpdate.Username,
-                ProfileImage = userProfileUpdate.ProfileImageUrl
-                // ProfileDescription and Location are not part of UserProfileUpdateDto,
-                // so they will be null and auth-service will not update them unless explicitly sent.
+                ProfileImage = userProfileUpdate.ProfileImageUrl,
+                ProfileDescription = userProfileUpdate.ProfileDescription
+                // Location is not included as it's not part of the update flow yet
             };
 
             var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
