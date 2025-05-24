@@ -146,6 +146,31 @@ livenessProbe:
    - Use in Terraform or other provisioning tools
    - Validate infrastructure health during deployment
 
+## 📝 Logging and Exception Handling
+
+The service implements comprehensive logging and exception handling to aid in debugging and monitoring.
+
+### Logging
+- **Request Tracking**: Each request is assigned a unique request ID for correlation
+- **Structured Logging**: Logs include structured data for better querying
+- **Log Levels**:
+  - `Information`: Normal operations (file uploads, deletes, etc.)
+  - `Warning`: Non-critical issues (invalid file types, missing files)
+  - `Error`: Critical failures (file system errors, etc.)
+
+### Exception Handling
+- **Global Exception Middleware**: Catches all unhandled exceptions
+- **Consistent Error Responses**: Returns standardized error responses
+- **Request IDs**: Each error includes a unique request ID for tracking
+- **Security**: Stack traces are only shown in non-production environments
+
+### Example Log Entry
+```
+[12:34:56 INF] [RequestId: abc123] Starting file upload
+[12:34:57 INF] [RequestId: abc123] Saving file example.jpg as 1a2b3c4d.jpg
+[12:34:57 INF] [RequestId: abc123] File uploaded successfully: http://cdn.example.com/u/1a2b3c4d.jpg
+```
+
 ## ⚠️ Known Limitations
 
 - No built-in rate limiting

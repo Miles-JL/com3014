@@ -2,12 +2,22 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using CdnService.Middleware;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Configure logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+// Add HTTP context accessor for logging
+builder.Services.AddHttpContextAccessor();
 
 // Add Health Checks
 builder.Services.AddHealthChecks()
@@ -107,15 +117,22 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseHttpsRedirection();
 
+// Add exception handling middleware before other middleware
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 // Map health check endpoint
+// Configure health check endpoint
 app.MapHealthChecks("/health", new()
 {
     AllowCachingResponses = false,
     ResponseWriter = async (context, report) =>
     {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Health check executed with status: {Status}", report.Status);
+        
         context.Response.ContentType = "application/json";
         var result = System.Text.Json.JsonSerializer.Serialize(new
         {
@@ -126,7 +143,8 @@ app.MapHealthChecks("/health", new()
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 exception = e.Value.Exception?.Message
-            })
+            }),
+            timestamp = DateTime.UtcNow
         });
         await context.Response.WriteAsync(result);
     }
