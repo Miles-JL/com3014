@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:80';
 
-export default function ProfilePage() {
+export default function ProfilePage({ onBack }) {
   const [profile, setProfile] = useState({
     username: '',
     profileImage: '',
@@ -103,6 +103,12 @@ export default function ProfilePage() {
         profileDescription: updateResponse.data.profileDescription || prev.profileDescription
       }));
       
+      setUpdateSuccess(true);
+      // Show success message for 1 second then go back
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 1000);
+      
     } catch (err) {
       console.error('Error updating profile:', err);
       if (err.response) {
@@ -167,7 +173,10 @@ export default function ProfilePage() {
       setFile(null);
       setFilePreview('');
       setUpdateSuccess(true);
-      setTimeout(() => setUpdateSuccess(false), 3000);
+      // Show success message for 1 second then go back
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 1000);
     } catch (err) {
       console.error('Error uploading image:', err);
       setError('Failed to upload image');

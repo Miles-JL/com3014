@@ -133,10 +133,23 @@ namespace UserService.Controllers
                     return NotFound(new { message = "User not found" });
                 }
 
+                // Track if we need to update auth service
+                bool updateAuthService = false;
+                var accessToken = await HttpContext.GetTokenAsync("access_token") ?? string.Empty;
+                
+                // Get access token for auth service calls
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    _logger.LogWarning("Access token not found for user {UserId}", id);
+                    return Unauthorized(new { message = "Access token not found. Please re-authenticate." });
+                }
+
                 // Update profile description if provided
-                if (profileRequest.ProfileDescription != null)
+                if (profileRequest.ProfileDescription != null && 
+                    profileRequest.ProfileDescription != user.ProfileDescription)
                 {
                     user.ProfileDescription = profileRequest.ProfileDescription;
+                    updateAuthService = true;
                     _logger.LogInformation("Updated profile description for user {UserId}", id);
                 }
 
@@ -154,14 +167,6 @@ namespace UserService.Controllers
                     _logger.LogInformation("Attempting to update username for user {UserId} to {NewUsername}", 
                         id, profileRequest.Username);
                     
-                    // Get access token for auth service calls
-                    var accessToken = await HttpContext.GetTokenAsync("access_token") ?? string.Empty;
-                    if (string.IsNullOrEmpty(accessToken))
-                    {
-                        _logger.LogWarning("Access token not found for user {UserId}", id);
-                        return Unauthorized(new { message = "Access token not found. Please re-authenticate." });
-                    }
-                    
                     // First check if username is available in the user service
                     bool isUsernameTaken = await _db.Users
                         .AnyAsync(u => EF.Functions.ILike(u.Username, profileRequest.Username) && u.Id != id);
@@ -171,41 +176,39 @@ namespace UserService.Controllers
                         _logger.LogWarning("Username {Username} is already taken", profileRequest.Username);
                         return BadRequest(new { message = "Username is already taken" });
                     }
+                    updateAuthService = true;
+                }
 
+                // If we need to update auth service (either username or profile description changed)
+                if (updateAuthService)
+                {
                     try
                     {
-                        // Update the username in auth service first
                         var authUpdateDto = new UserProfileUpdateDto
                         {
                             UserId = id.ToString(),
-                            Username = profileRequest.Username,
-                            ProfileImageUrl = user.ProfileImage
+                            Username = profileRequest.Username ?? user.Username,
+                            ProfileImageUrl = user.ProfileImage,
+                            ProfileDescription = profileRequest.ProfileDescription ?? user.ProfileDescription
                         };
 
-                        _logger.LogInformation("Updating username in auth service for user {UserId}", id);
+                        _logger.LogInformation("Updating user profile in auth service for user {UserId}", id);
                         var authUpdateSuccess = await _authSyncService.UpdateUserProfileAsync(authUpdateDto, accessToken);
                         
                         if (!authUpdateSuccess)
                         {
-                            _logger.LogError("Failed to update username in auth service for user {UserId}", id);
+                            _logger.LogError("Failed to update user profile in auth service for user {UserId}", id);
                             return StatusCode(StatusCodes.Status502BadGateway, 
-                                new { message = "Failed to update username in authentication service." });
+                                new { message = "Failed to update profile in authentication service." });
                         }
 
-                        // Update the username locally after successful auth service update
-                        string oldUsername = user.Username;
-                        user.Username = profileRequest.Username;
-                        user.LastUpdated = DateTime.UtcNow;
-                        await _db.SaveChangesAsync();
-                        
-                        _logger.LogInformation("Successfully updated username for user {UserId} from {OldUsername} to {NewUsername}", 
-                            id, oldUsername, profileRequest.Username);
+                        _logger.LogInformation("Successfully updated auth service profile for user {UserId}", id);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error updating username for user {UserId}", id);
+                        _logger.LogError(ex, "Error updating auth service profile for user {UserId}", id);
                         return StatusCode(StatusCodes.Status500InternalServerError, 
-                            new { message = "An error occurred while updating the username." });
+                            new { message = "An error occurred while updating the profile in the authentication service." });
                     }
                 }
 
@@ -317,7 +320,8 @@ namespace UserService.Controllers
                 {
                     UserId = userId.ToString(),
                     Username = username,
-                    ProfileImageUrl = cdnFileUrl
+                    ProfileImageUrl = cdnFileUrl,
+                    ProfileDescription = localUserForOldImage?.ProfileDescription
                 };
                 var authUpdateSuccess = await _authSyncService.UpdateUserProfileAsync(userProfileUpdateDto, accessToken);
                 if (!authUpdateSuccess)
