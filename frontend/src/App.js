@@ -3,7 +3,8 @@ import axios from "axios";
 import ProfilePage from "./ProfilePage";
 import ChatRoomList from "./ChatRoomList";
 import Chat from "./Chat";
-import DmChat from "./dmChat"; // import DM chat
+import DmChat from "./dmChat";
+import NotificationBell from "./components/NotificationBell";
 import "./App.css";
 
 const API_URL = 'http://localhost:80';
@@ -13,6 +14,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [showProfile, setShowProfile] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Instead of separate view states, just hold current chat info:
   const [selectedRoom, setSelectedRoom] = useState(null); // for group chat
@@ -20,10 +22,23 @@ function App() {
   const [activeDmRecipient, setActiveDmRecipient] = useState(null);
 
   useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCurrentUser(response.data);
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+      }
+    };
+
     if (token) {
       localStorage.setItem("token", token);
+      fetchCurrentUser();
     } else {
       localStorage.removeItem("token");
+      setCurrentUser(null);
     }
   }, [token]);
 
@@ -62,6 +77,7 @@ function App() {
 
   const handleLogout = () => {
     setToken("");
+    setCurrentUser(null);
     setSelectedRoom(null);
     setActiveDmRecipient(null);
     setShowProfile(false);
@@ -116,7 +132,7 @@ function App() {
             </div>
           </div>
         ) : showProfile ? (
-          <>
+          <div className="app-content">
             <div className="nav-bar">
               <button onClick={() => setShowProfile(false)}>
                 Back to Chat
@@ -124,34 +140,37 @@ function App() {
               <button onClick={handleLogout}>Logout</button>
             </div>
             <ProfilePage />
-          </>
+          </div>
         ) : (
-          <>
+          <div className="app-content">
             <div className="nav-bar">
-              <div>
+              <div className="nav-actions">
+                <NotificationBell token={token} userId={currentUser?.id} />
                 <button onClick={() => setShowProfile(true)}>My Profile</button>
                 <button onClick={handleLogout}>Logout</button>
               </div>
             </div>
 
-            {/* If DM chat active, show it */}
-            {activeDmRecipient ? (
-              <DmChat recipient={activeDmRecipient} onLeave={handleLeaveDm} />
-            ) : null}
+            <div className="main-content">
+              {/* If DM chat active, show it */}
+              {activeDmRecipient ? (
+                <DmChat recipient={activeDmRecipient} onLeave={handleLeaveDm} />
+              ) : null}
 
-            {/* If group chat room active, show it */}
-            {selectedRoom ? (
-              <Chat room={selectedRoom} onLeave={handleLeaveRoom} />
-            ) : null}
+              {/* If group chat room active, show it */}
+              {selectedRoom ? (
+                <Chat room={selectedRoom} onLeave={handleLeaveRoom} />
+              ) : null}
 
-            {/* If no chat active, show room list (pass handlers for selecting room or starting DM) */}
-            {!selectedRoom && !activeDmRecipient && (
-              <ChatRoomList
-                onSelectRoom={handleSelectRoom}
-                onStartDm={handleStartDm}
-              />
-            )}
-          </>
+              {/* If no chat active, show room list */}
+              {!selectedRoom && !activeDmRecipient && (
+                <ChatRoomList
+                  onSelectRoom={handleSelectRoom}
+                  onStartDm={handleStartDm}
+                />
+              )}
+            </div>
+          </div>
         )}
       </div>
     </>
