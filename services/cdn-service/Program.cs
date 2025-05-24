@@ -114,6 +114,16 @@ if (!Directory.Exists(storagePath))
     app.Logger.LogInformation("Created storage directory at: {StoragePath}", storagePath);
 }
 
+// Seed profile images on startup
+try
+{
+    ImageSeeder.SeedProfileImages(app.Environment.ContentRootPath, app.Logger);
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "An error occurred while seeding profile images");
+}
+
 // Serve static files from the storage directory
 app.UseStaticFiles(new StaticFileOptions
 {
