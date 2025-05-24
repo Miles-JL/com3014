@@ -3,6 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using CdnService.Middleware;
+using CdnService.Services;
 using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Register file storage service
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
 // Configure logging
 builder.Logging.ClearProviders();
@@ -102,18 +106,24 @@ app.UseSwaggerUI(options =>
     options.OAuthAppName("Swagger UI");
 });
 
-// Create storage directory if it doesn't exist
+// Ensure storage directory exists
 var storagePath = Path.Combine(app.Environment.ContentRootPath, "storage");
 if (!Directory.Exists(storagePath))
 {
     Directory.CreateDirectory(storagePath);
+    app.Logger.LogInformation("Created storage directory at: {StoragePath}", storagePath);
 }
 
+// Serve static files from the storage directory
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storagePath),
-    RequestPath = "/u"
+    RequestPath = "/u",
+    ServeUnknownFileTypes = false,
+    DefaultContentType = "application/octet-stream"
 });
+
+app.Logger.LogInformation("Serving static files from {StoragePath} at /u", storagePath);
 
 app.UseHttpsRedirection();
 

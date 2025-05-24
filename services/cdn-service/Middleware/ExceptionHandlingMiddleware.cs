@@ -44,15 +44,14 @@ namespace CdnService.Middleware
             
             _logger.LogError(exception, "Error {ErrorId}: {Message}", errorId, exception.Message);
 
-            var response = new ErrorResponse
-            {
-                RequestId = errorId,
-                Error = "An error occurred while processing your request",
-                ErrorDescription = _env.IsProduction() 
+            var response = new ErrorResponse(
+                requestId: errorId,
+                error: "An error occurred while processing your request",
+                errorDescription: _env.IsProduction() 
                     ? "An internal server error occurred" 
                     : exception.Message,
-                StackTrace = !_env.IsProduction() ? exception.StackTrace : null
-            };
+                stackTrace: !_env.IsProduction() ? exception.StackTrace : null
+            );
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = statusCode;

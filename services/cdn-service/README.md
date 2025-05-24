@@ -77,6 +77,79 @@ Add these to `appsettings.json`:
 }
 ```
 
+## 💾 Storage Abstraction
+
+The CDN service uses a flexible storage abstraction that makes it easy to switch between different storage providers (local, cloud, etc.) without changing the application code.
+
+### Current Implementation: Local Storage
+
+By default, the service uses `LocalFileStorageService` which stores files on the local filesystem in a `storage` directory.
+
+```csharp
+// Program.cs
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+```
+
+### How to Switch to a Different Storage Provider
+
+1. **Create a new storage provider** by implementing the `IFileStorageService` interface:
+
+```csharp
+public class CloudFileStorageService : IFileStorageService
+{
+    public Task<string> UploadFileAsync(IFormFile file, string? oldFileName = null)
+    {
+        // Your cloud storage implementation here
+    }
+    
+    public Task<bool> DeleteFileAsync(string filename)
+    {
+        // Your cloud storage implementation here
+    }
+    
+    public string GetFileUrl(string filename)
+    {
+        // Return public URL for the file
+    }
+}
+```
+
+2. **Update the service registration** in `Program.cs`:
+
+```csharp
+// Change this line to use your new provider
+builder.Services.AddScoped<IFileStorageService, CloudFileStorageService>();
+```
+
+### Benefits of This Approach
+
+- **Easy to Test**: Mock the `IFileStorageService` in unit tests
+- **No Code Changes**: Switch providers by changing one line of code
+- **Future-Proof**: Add new storage providers without modifying existing code
+- **Consistent API**: All storage providers implement the same interface
+
+### Available Storage Providers
+
+| Provider | Class | Description |
+|----------|-------|-------------|
+| Local File System | `LocalFileStorageService` | Stores files on the server's filesystem |
+| Azure Blob Storage | (Example) `AzureBlobStorageService` | Stores files in Azure Blob Storage |
+| AWS S3 | (Example) `S3StorageService` | Stores files in AWS S3 |
+
+### Configuration
+
+Each storage provider may require different configuration. For example, cloud providers will need connection strings or access keys, which should be stored in `appsettings.json` or environment variables.
+
+Example for Azure Blob Storage:
+```json
+{
+  "AzureStorage": {
+    "ConnectionString": "your-connection-string",
+    "ContainerName": "your-container"
+  }
+}
+```
+
 ## ✅ Health Check Endpoint
 
 The service exposes a health check endpoint at `/health` that monitors the service's operational status. This endpoint is particularly useful for monitoring, load balancing, and automated recovery systems.
