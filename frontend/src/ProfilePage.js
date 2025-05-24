@@ -201,7 +201,7 @@ export default function ProfilePage() {
           <h3>Profile Image</h3>
           {profile.profileImage ? (
             <img 
-              src={`${API_URL}${profile.profileImage}`} 
+              src={profile.profileImage} 
               alt="Profile" 
               style={{ width: 150, height: 150, objectFit: 'cover' }} 
             />

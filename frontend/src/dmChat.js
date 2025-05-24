@@ -5,40 +5,39 @@ const API_URL = "http://localhost:80";
 export default function DMChat({ recipient, onLeave }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const socketRef = useRef(null);
-  const messagesContainerRef = useRef(null);
   const [username, setUsername] = useState("");
   const [profileImage, setProfileImage] = useState("");
+
+  const socketRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const localMessagesRef = useRef(new Set());
+
   const connectionAttempted = useRef(false);
-  let reconnectTimeout = null;
+  const reconnectTimeout = useRef(null);
+  const heartbeatInterval = useRef(null);
+  const hasLeft = useRef(false);
+  const intentionalCloseRef = useRef(false); // Tracks if the socket was closed on purpose
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (token) {
-          const response = await fetch(`${API_URL}/api/user/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-          if (response.ok) {
-            const data = await response.json();
-            setUsername(data.username);
-            setProfileImage(data.profileImage);
-          } else {
-            try {
-              const payload = JSON.parse(atob(token.split(".")[1]));
-              setUsername(payload.unique_name || payload.name || "");
-            } catch (error) {
-              console.error("Failed to decode token:", error);
-            }
-          }
+      try {
+        const response = await fetch(`${API_URL}/api/user/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUsername(data.username);
+          setProfileImage(data.profileImage);
+        } else {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          setUsername(payload.unique_name || payload.name || "");
         }
       } catch (err) {
-        console.error("Failed to fetch user profile:", err);
+        console.error("Profile fetch error:", err);
       }
     };
 
@@ -47,152 +46,70 @@ export default function DMChat({ recipient, onLeave }) {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token || !recipient || !username || connectionAttempted.current)
-      return;
+    if (!token || !recipient || !username || connectionAttempted.current) return;
 
     connectionAttempted.current = true;
-    localMessagesRef.current = new Set();
-    if (socketRef.current) socketRef.current.close();
+    hasLeft.current = false;
+    connectWebSocket(token);
 
-    const wsUrl = `ws://${API_URL.replace(
-      "http://",
-      ""
-    )}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
-    socketRef.current = new WebSocket(wsUrl);
-
-    let heartbeatInterval = null;
-
-    socketRef.current.onopen = () => {
-      console.log(`Connected for DM with ${recipient.username}`);
-      clearInterval(heartbeatInterval);
-      clearTimeout(reconnectTimeout);
-
-      setMessages((prev) => {
-        // Only add the system message if there are no existing messages
-        if (prev.length === 0) {
-          return [
-            {
-              type: "system",
-              text: `You started a DM with ${recipient.username}`,
-              timestamp: new Date(),
-            },
-          ];
-        }
-        return prev;
-      });
-
-      // Start heartbeat
-      heartbeatInterval = setInterval(() => {
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(
-            JSON.stringify({
-              senderId: getUserIdFromToken(token),
-              recipientId: recipient.id,
-              text: "__ping__",
-              timestamp: new Date().toISOString(),
-            })
-          );
-        }
-      }, 25000);
-    };
-
-    socketRef.current.onmessage = (event) => {
-      try {
-        const messageData = JSON.parse(event.data);
-
-        // Ignore pings
-        if (messageData.text === "__ping__") return;
-
-        if (messageData.type === "history") {
-          setMessages(messageData.messages || []);
-          return;
-        }
-
-        // Avoid duplicates
-        if (
-          messageData.sender === username &&
-          messageData.type !== "system" &&
-          messageData.text
-        ) {
-          const messageKey = `${messageData.sender}:$${
-            messageData.text
-          }:${new Date(messageData.timestamp).getTime()}`;
-          if (localMessagesRef.current.has(messageKey)) return;
-        }
-
-        setMessages((prev) => [...prev, messageData]);
-      } catch (err) {
-        setMessages((prev) => [...prev, { text: event.data }]);
-      }
-    };
-
-    socketRef.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
-    socketRef.current.onclose = () => {
-      console.log("WebSocket disconnected. Retrying in 5 seconds...");
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "system",
-          text: "Attempting to reconnect...",
-          timestamp: new Date(),
-        },
-      ]);
-      clearInterval(heartbeatInterval);
-      reconnectTimeout = setTimeout(connectWebSocket, 5000);
-    };
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-      clearInterval(heartbeatInterval);
-      connectionAttempted.current = false;
-      clearTimeout(reconnectTimeout);
-    };
+    return () => cleanupWebSocket();
   }, [recipient, username]);
 
   useEffect(() => {
     const fetchChatHistory = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token || !recipient) return;
+      const token = localStorage.getItem("token");
+      if (!token || !recipient) return;
 
-        const response = await fetch(
-          `${API_URL}/api/message/history?recipientId=${recipient.id}&limit=50`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+      try {
+        const response = await fetch(`${API_URL}/api/message/history?recipientId=${recipient.id}&limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (response.ok) {
           const history = await response.json();
-          const formattedHistory = history.map((msg) => ({
-            ...msg,
-            text: msg.content, // Map 'content' to 'text'
-          }));
+          const formatted = history.map(async (msg) => {
+            if (msg.senderId === recipient.id) {
+              return {
+                ...msg,
+                text: msg.content,
+                profileImage: recipient.profileImage,
+                sender: recipient.username,
+              };
+            }
+
+            const senderResponse = await fetch(`${API_URL}/api/user/${msg.senderId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (senderResponse.ok) {
+              const senderData = await senderResponse.json();
+              return {
+                ...msg,
+                text: msg.content,
+                profileImage: senderData.profileImage,
+                sender: senderData.username,
+              };
+            }
+
+            return {
+              ...msg,
+              text: msg.content,
+              profileImage: null,
+              sender: "Unknown",
+            };
+          });
+
+          const resolvedMessages = await Promise.all(formatted);
 
           setMessages((prev) => {
             const existingIds = new Set(prev.map((msg) => msg.id));
-            const uniqueHistory = formattedHistory.filter(
-              (msg) => !existingIds.has(msg.id)
-            );
+            const uniqueHistory = resolvedMessages.filter((msg) => !existingIds.has(msg.id));
             const systemMessages = prev.filter((msg) => msg.type === "system");
-            return [
-              ...systemMessages,
-              ...uniqueHistory,
-              ...prev.filter((msg) => msg.type !== "system"),
-            ];
+            return [...systemMessages, ...uniqueHistory, ...prev.filter((msg) => msg.type !== "system")];
           });
-        } else {
-          console.error("Failed to fetch chat history", response.statusText);
         }
       } catch (err) {
-        console.error("Error fetching chat history:", err);
+        console.error("Chat history fetch failed:", err);
       }
     };
 
@@ -201,81 +118,59 @@ export default function DMChat({ recipient, onLeave }) {
 
   useEffect(() => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
-  function getUserIdFromToken(token) {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return parseInt(payload.uid || payload.nameidentifier || payload.sub);
-    } catch (err) {
-      console.error("Failed to extract userId from token:", err);
-      return null;
-    }
-  }
+  const cleanupWebSocket = () => {
+    connectionAttempted.current = false;
+    clearInterval(heartbeatInterval.current);
+    clearTimeout(reconnectTimeout.current);
+    heartbeatInterval.current = null;
+    reconnectTimeout.current = null;
 
-  const sendMessage = () => {
-    if (input.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
-      const token = localStorage.getItem("token");
-      const userId = getUserIdFromToken(token);
-      if (!userId) return;
-
-      const message = {
-        senderId: userId,
-        sender: username,
-        recipientId: recipient.id,
-        text: input.trim(),
-        timestamp: new Date().toISOString(),
-      };
-
-      socketRef.current.send(JSON.stringify(message));
-
-      setMessages((prev) => [...prev, { ...message, sender: username }]);
-      setInput("");
-    }
-  };
-
-  const handleLeave = () => {
     if (socketRef.current) {
       socketRef.current.close();
+      socketRef.current = null;
     }
-    connectionAttempted.current = false;
-    onLeave();
+
+    localMessagesRef.current = new Set();
+    hasLeft.current = false;
+    // Do not reset intentionalCloseRef here to avoid race conditions
   };
 
-  function connectWebSocket() {
-    const token = localStorage.getItem("token");
-    if (!token || !recipient) return;
+  const connectWebSocket = (token) => {
+    if (hasLeft.current) return;
 
-    const wsUrl = `ws://${API_URL.replace(
-      "http://",
-      ""
-    )}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
+    const wsUrl = `ws://${API_URL.replace("http://", "")}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
     socketRef.current = new WebSocket(wsUrl);
 
-    let heartbeatInterval = null;
-
     socketRef.current.onopen = () => {
-      console.log(`Connected for DM with ${recipient.username}`);
-      clearInterval(heartbeatInterval);
-      clearTimeout(reconnectTimeout);
+      if (hasLeft.current) {
+        socketRef.current.close();
+        return;
+      }
 
+      console.log(`Connected for DM with ${recipient.username}`);
+      clearInterval(heartbeatInterval.current);
+      clearTimeout(reconnectTimeout.current);
+
+      // Only show reconnection message if previously trying to reconnect
       setMessages((prev) => {
-        if (prev.length === 0) {
-          return [
-            {
-              type: "system",
-              text: `You started a DM with ${recipient.username}`,
-              timestamp: new Date(),
-            },
-          ];
+        const last = prev[prev.length - 1];
+        if (last?.type === "system" && last.text === "Attempting to reconnect...") {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            type: "system",
+            text: "Reconnected successfully.",
+            timestamp: new Date(),
+          };
+          return updated;
         }
         return prev;
       });
 
-      heartbeatInterval = setInterval(() => {
+      heartbeatInterval.current = setInterval(() => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
           socketRef.current.send(
             JSON.stringify({
@@ -291,15 +186,24 @@ export default function DMChat({ recipient, onLeave }) {
 
     socketRef.current.onmessage = (event) => {
       try {
-        const messageData = JSON.parse(event.data);
-        if (messageData.text === "__ping__") return;
-        setMessages((prev) => [...prev, messageData]);
+        const data = JSON.parse(event.data);
+        if (data.text === "__ping__") return;
+        setMessages((prev) => [...prev, data]);
       } catch (err) {
-        console.error("Error parsing WebSocket message:", err);
+        console.error("Message parse error:", err);
       }
     };
 
     socketRef.current.onclose = () => {
+      clearInterval(heartbeatInterval.current);
+      heartbeatInterval.current = null;
+
+      if (intentionalCloseRef.current) {
+        console.log("WebSocket closed due to Leave DM.");
+        intentionalCloseRef.current = false;
+        return;
+      }
+
       console.log("WebSocket disconnected. Retrying in 5 seconds...");
       setMessages((prev) => [
         ...prev,
@@ -309,14 +213,62 @@ export default function DMChat({ recipient, onLeave }) {
           timestamp: new Date(),
         },
       ]);
-      clearInterval(heartbeatInterval);
-      reconnectTimeout = setTimeout(connectWebSocket, 5000);
+
+      reconnectTimeout.current = setTimeout(() => {
+        const retryToken = localStorage.getItem("token");
+        if (retryToken && connectionAttempted.current && !hasLeft.current) {
+          connectWebSocket(retryToken);
+        }
+      }, 5000);
     };
 
-    socketRef.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    socketRef.current.onerror = (err) => {
+      console.error("WebSocket error:", err);
     };
-  }
+  };
+
+  const handleLeave = () => {
+    hasLeft.current = true;
+    intentionalCloseRef.current = true;
+
+    if (socketRef.current) {
+      socketRef.current.close();
+    }
+
+    cleanupWebSocket();
+    onLeave();
+  };
+
+  const sendMessage = () => {
+    if (!input.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
+
+    const token = localStorage.getItem("token");
+    const userId = getUserIdFromToken(token);
+    if (!userId) return;
+
+    const msg = {
+      senderId: userId,
+      sender: username,
+      profileImage,
+      recipientId: recipient.id,
+      text: input.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    socketRef.current.send(JSON.stringify(msg));
+    setMessages((prev) => [...prev, msg]);
+    setInput("");
+  };
+
+  const getUserIdFromToken = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return parseInt(payload.uid || payload.nameidentifier || payload.sub);
+    } catch (err) {
+      console.error("Failed to extract user ID:", err);
+      return null;
+    }
+  };
 
   if (!recipient) {
     return <div>Select a user to DM</div>;
@@ -325,9 +277,7 @@ export default function DMChat({ recipient, onLeave }) {
   return (
     <div className="chat-outer">
       <div className="chat-header">
-        <div>
-          <h2>DM with {recipient.username}</h2>
-        </div>
+        <h2>DM with {recipient.username}</h2>
         <button className="leave-btn" onClick={handleLeave}>
           Leave DM
         </button>
@@ -337,31 +287,20 @@ export default function DMChat({ recipient, onLeave }) {
           <div className="no-messages">No messages yet. Say hi!</div>
         ) : (
           messages.map((msg, i) => (
-            <div
-              key={i}
-              className={msg.type === "system" ? "system-message" : "message"}
-            >
+            <div key={i} className={msg.type === "system" ? "system-message" : "message"}>
               {msg.type === "system" ? (
                 <span>{msg.text}</span>
               ) : (
                 <>
                   <div className="message-header">
                     {msg.profileImage ? (
-                      <img
-                        src={`${API_URL}${msg.profileImage}`}
-                        alt="Profile"
-                        className="profile-thumbnail"
-                      />
+                      <img src={msg.profileImage} alt="Profile" className="profile-thumbnail" />
                     ) : (
-                      <div className="profile-initial">
-                        {msg.sender?.charAt(0)?.toUpperCase() || "?"}
-                      </div>
+                      <div className="profile-initial">{msg.sender?.charAt(0).toUpperCase() || "?"}</div>
                     )}
                     <span className="sender">{msg.sender || "Unknown"}</span>
                     {msg.timestamp && (
-                      <span className="timestamp">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </span>
+                      <span className="timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                     )}
                   </div>
                   <div className="message-text">{msg.text}</div>

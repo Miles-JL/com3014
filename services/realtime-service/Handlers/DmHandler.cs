@@ -98,6 +98,20 @@ public class DmHandler
                 continue;
             }
 
+            // Handle WebSocket close event
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                Console.WriteLine($"[DMHandler] User {userId} disconnected");
+                
+                // Clean up connection
+                if (_connections.ContainsKey(userId))
+                {
+                    _connections.Remove(userId);
+                }
+                
+                return;
+            }
+
             // Reset heartbeat timer on valid message
             heartbeatTimer = Task.Delay(heartbeatInterval);
 
@@ -115,7 +129,18 @@ public class DmHandler
             if (_connections.TryGetValue(msg.RecipientId, out var recipientSocket) &&
                 recipientSocket.State == WebSocketState.Open)
             {
-                var payload = JsonSerializer.Serialize(msg);
+                // Include profile image in the message
+                var messageWithImage = new RealtimeMessage
+                {
+                    SenderId = msg.SenderId,
+                    Sender = msg.Sender,
+                    ProfileImage = msg.ProfileImage,
+                    RecipientId = msg.RecipientId,
+                    Text = msg.Text,
+                    Timestamp = msg.Timestamp
+                };
+
+                var payload = JsonSerializer.Serialize(messageWithImage);
                 var bytes = Encoding.UTF8.GetBytes(payload);
                 await recipientSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
             }
@@ -184,7 +209,9 @@ public class RealtimeMessage
 
     [JsonPropertyName("sender")]
     public string Sender { get; set; } = "";
-    public int profileImage { get; set; }
+    
+    [JsonPropertyName("profileImage")]
+    public string ProfileImage { get; set; } = "";
 
     [JsonPropertyName("recipientId")]
     public int RecipientId { get; set; }

@@ -8,6 +8,7 @@ using System.Text;
 using System.IO;
 using Microsoft.AspNetCore.Http;
 using UserService;
+using UserService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,6 +73,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<JwtService>(); // Add JwtService
+
+// Register custom services for CDN and Auth synchronization
+builder.Services.AddHttpClient("CdnServiceClient", client =>
+{
+    var cdnServiceUrl = builder.Configuration["ServiceUrls:CdnService"] ?? "http://localhost:5250";
+    client.BaseAddress = new Uri(cdnServiceUrl);
+});
+builder.Services.AddScoped<ICdnService, CdnService>();
+
+builder.Services.AddHttpClient("AuthServiceClient", client =>
+{
+    var authServiceUrl = builder.Configuration["ServiceUrls:AuthService"] ?? "http://localhost:5106";
+    client.BaseAddress = new Uri(authServiceUrl);
+});
+builder.Services.AddScoped<IAuthSyncService, AuthSyncService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
