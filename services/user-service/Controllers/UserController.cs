@@ -283,11 +283,11 @@ namespace UserService.Controllers
                 return BadRequest(new { message = $"File size exceeds the limit of {maxFileSize / (1024 * 1024)}MB." });
             }
 
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
             {
-                return BadRequest(new { message = "Invalid file type. Allowed types: .jpg, .jpeg, .png" });
+                return BadRequest(new { message = $"Invalid file type. Allowed types: {string.Join(", ", allowedExtensions)}" });
             }
 
             try
