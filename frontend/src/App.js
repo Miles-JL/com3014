@@ -123,7 +123,7 @@ function App() {
               </button>
               <button onClick={handleLogout}>Logout</button>
             </div>
-            <ProfilePage />
+            <ProfilePage onBack={() => setShowProfile(false)} />
           </>
         ) : (
           <>
