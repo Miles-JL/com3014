@@ -287,7 +287,7 @@ namespace UserService.Controllers
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
             {
-                return BadRequest(new { message = "Invalid file type. Allowed types: .jpg, .jpeg, .png, .gif" });
+                return BadRequest(new { message = $"Invalid file type. Allowed types: {string.Join(", ", allowedExtensions)}" });
             }
 
             try
