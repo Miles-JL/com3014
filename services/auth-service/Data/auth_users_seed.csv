@@ -1,4 +1,4 @@
 Username,Password,ProfileImage,ProfileDescription,Location,IsAdmin
-alice,alicepassword,alice.png,"Hi, I'm Alice!","London",false
-bob,bobpassword,bob.jpg,"Bob here.","New York",false
-admin,admin123,admin.png,"System Administrator","HQ",true
+alice,alicepassword,http://localhost:5250/u/alice.gif,"Hi, I'm Alice!","London",false
+bob,bobpassword,http://localhost:5250/u/bob.gif,"Bob here.","New York",false
+admin,admin123,http://localhost:5250/u/admin.jpg,"System Administrator","HQ",true
