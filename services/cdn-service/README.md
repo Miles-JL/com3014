@@ -146,30 +146,103 @@ livenessProbe:
    - Use in Terraform or other provisioning tools
    - Validate infrastructure health during deployment
 
-## 📝 Logging and Exception Handling
+## 📝 Logging and Monitoring
 
-The service implements comprehensive logging and exception handling to aid in debugging and monitoring.
+The service implements comprehensive logging and monitoring to ensure reliability and ease of debugging.
 
-### Logging
-- **Request Tracking**: Each request is assigned a unique request ID for correlation
-- **Structured Logging**: Logs include structured data for better querying
-- **Log Levels**:
-  - `Information`: Normal operations (file uploads, deletes, etc.)
-  - `Warning`: Non-critical issues (invalid file types, missing files)
-  - `Error`: Critical failures (file system errors, etc.)
+### Logging Configuration
+
+#### Log Levels
+- `Debug`: Detailed debug information (development only)
+- `Information`: Normal operations (file uploads, deletes, etc.)
+- `Warning`: Non-critical issues (invalid file types, missing files)
+- `Error`: Critical failures (file system errors, etc.)
+
+#### Log Format
+Each log entry includes:
+- Timestamp
+- Log level
+- Request ID (for correlation)
+- Source context (controller/middleware)
+- Structured message
+
+#### Example Log Entries
+```
+# Successful file upload
+[12:34:56 INF] [RequestId: abc123] [CdnService.UploadController] Starting file upload
+[12:34:57 INF] [RequestId: abc123] [CdnService.UploadController] Validating file type: image/jpeg
+[12:34:57 INF] [RequestId: abc123] [CdnService.UploadController] Saving file: abc123.jpg (2.4MB)
+[12:34:57 INF] [RequestId: abc123] [CdnService.UploadController] File uploaded successfully: /u/abc123.jpg
+
+# Error case
+[12:35:01 WRN] [RequestId: def456] [CdnService.ExceptionHandling] Invalid file type: application/exe
+[12:35:01 WRN] [RequestId: def456] [CdnService.UploadController] File validation failed: Invalid file type
+```
+
+### Viewing Logs
+
+#### Development Environment
+1. Run the service with:
+   ```bash
+   $env:ASPNETCORE_ENVIRONMENT="Development"
+   dotnet run
+   ```
+2. Logs will appear in the console with colors and detailed information
+
+#### Production Environment
+1. Logs are written to the console in JSON format
+2. Can be collected by container orchestration (Docker, Kubernetes)
+3. Use `docker logs` or your container platform's log viewer
 
 ### Exception Handling
-- **Global Exception Middleware**: Catches all unhandled exceptions
-- **Consistent Error Responses**: Returns standardized error responses
-- **Request IDs**: Each error includes a unique request ID for tracking
-- **Security**: Stack traces are only shown in non-production environments
 
-### Example Log Entry
+#### Global Exception Middleware
+- Catches all unhandled exceptions
+- Returns consistent error responses
+- Logs detailed error information
+- Masks sensitive data in production
+
+#### Error Response Format
+```json
+{
+  "requestId": "abc123",
+  "message": "File size exceeds the limit of 5MB",
+  "timestamp": "2025-05-24T12:34:56Z"
+}
 ```
-[12:34:56 INF] [RequestId: abc123] Starting file upload
-[12:34:57 INF] [RequestId: abc123] Saving file example.jpg as 1a2b3c4d.jpg
-[12:34:57 INF] [RequestId: abc123] File uploaded successfully: http://cdn.example.com/u/1a2b3c4d.jpg
-```
+
+### Monitoring
+
+#### Health Check Endpoint
+- `GET /health` - Returns service health status
+- Monitors storage accessibility
+- Used by load balancers and orchestration systems
+
+#### Metrics (Planned)
+- Request rates
+- Error rates
+- File operations
+- Storage usage
+
+### Debugging Tips
+
+1. **Correlating Logs**
+   - Use the `RequestId` to track a request through the system
+   - Example: `grep "abc123" logs.txt`
+
+2. **Common Issues**
+   - **Missing logs?** Check if running in Production mode (logs are less verbose)
+   - **Can't find logs?** Ensure you're looking at the correct terminal/container
+   - **No RequestId?** The request might not be reaching the service
+
+3. **Testing Logging**
+   ```bash
+   # Test health check logging
+   curl http://localhost:5250/health
+   
+   # Test error logging
+   curl -X POST http://localhost:5250/api/upload -H "Content-Type: multipart/form-data" -F "file=@test.txt"
+   ```
 
 ## ⚠️ Known Limitations
 
