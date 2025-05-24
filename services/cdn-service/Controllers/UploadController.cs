@@ -18,7 +18,7 @@ namespace CdnService.Controllers
         private readonly ILogger<UploadController> _logger;
         private readonly IFileStorageService _fileStorageService;
         private const long MaxFileSize = 5 * 1024 * 1024; // 5MB
-        private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png" };
+        private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif" };
 
         public UploadController(
             ILogger<UploadController> logger,

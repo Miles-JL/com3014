@@ -101,6 +101,12 @@ namespace CdnService.Services
                 return string.Empty;
             }
             
+            // If the filename is already a full URL, return it as-is
+            if (filename.StartsWith("http://") || filename.StartsWith("https://"))
+            {
+                return filename;
+            }
+            
             return $"{_baseUrl}/u/{Uri.EscapeDataString(filename)}";
         }
     }
