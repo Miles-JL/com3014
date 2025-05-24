@@ -110,7 +110,7 @@ After the frontend and API Gateway services are running, open a new PowerShell w
 
 ```powershell
 cd C:\nginx
-.\nginx.exe -c "C:\Path\To\Your\Project\services\load-balancer\nginx.conf"
+.\nginx.exe -c "C:\Path\To\Your\com3014\load-balancer\nginx.conf"
 ```
 
 > Replace the path with the actual location of your `nginx.conf` (Right click `nginx.conf` and Copy Path).

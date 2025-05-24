@@ -1,3 +1,10 @@
+# Clear contents of cdn-service/storage directory
+$storagePath = "services/cdn-service/storage"
+if (Test-Path $storagePath) {
+    Remove-Item -Path "$storagePath\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Cleared contents of $storagePath" -ForegroundColor DarkYellow
+}
+
 $services = @(
     @{ Name = "auth-service"; Path = "services/auth-service" },
     @{ Name = "user-service"; Path = "services/user-service" },
