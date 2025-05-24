@@ -7,6 +7,7 @@ namespace UserService.Services
         public string UserId { get; set; }
         public string Username { get; set; }
         public string? ProfileImageUrl { get; set; }
+        public string? ProfileDescription { get; set; }
         // Add any other fields that auth-service might expect or need for an update
     }
 

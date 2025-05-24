@@ -14,22 +14,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Add CORS support
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policyBuilder =>
+    options.AddPolicy("AllowConfiguredOrigins", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:3000") // Frontend
+            .WithOrigins("http://localhost:3000", "http://localhost:80") // Frontend and API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials();
-    });
-    
-    options.AddPolicy("AllowApiGateway", policyBuilder =>
-    {
-        policyBuilder
-            .WithOrigins("http://localhost:5247") // API Gateway
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
+            .AllowCredentials()
+            .SetIsOriginAllowed(origin => 
+                origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) ||
+                origin.StartsWith("https://localhost:", StringComparison.OrdinalIgnoreCase));
     });
 });
 
@@ -117,8 +111,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // IMPORTANT: Place UseCors() before UseAuthentication() and UseAuthorization()
-app.UseCors("AllowFrontend");
-app.UseCors("AllowApiGateway");
+app.UseCors("AllowConfiguredOrigins");
 
 app.UseAuthentication();
 app.UseAuthorization();

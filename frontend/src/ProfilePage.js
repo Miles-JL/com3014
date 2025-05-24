@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:80';
 
-export default function ProfilePage() {
+export default function ProfilePage({ onBack }) {
   const [profile, setProfile] = useState({
     username: '',
     profileImage: '',
@@ -53,28 +53,7 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem('token');
       
-      // Only update username if it has changed
-      if (newUsername !== profile.username) {
-        // First update username in auth service
-        const authResponse = await axios.post(
-          'http://localhost:5106/api/Auth/update-username',
-          { newUsername },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            withCredentials: true
-          }
-        );
-        
-        if (authResponse.data && authResponse.data.token) {
-          // Update the stored token with the new one containing the updated username
-          localStorage.setItem('token', authResponse.data.token);
-        }
-      }
-      
-      // Then update the rest of the profile in the user service
+      // First update the profile in the user service
       const updateResponse = await axios.put(
         `${API_URL}/api/user/profile`,
         {
@@ -83,38 +62,52 @@ export default function ProfilePage() {
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          withCredentials: true
         }
       );
       
-      // If we get here, both updates were successful
-      
-      // Sync with Auth service to ensure data consistency
-      try {
-        await axios.post(
-          `${API_URL}/api/user/sync-with-auth`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
+      // If username was changed, also update it in the auth service
+      if (newUsername !== profile.username) {
+        try {
+          const authResponse = await axios.post(
+            `${API_URL}/api/auth/update-username`,
+            { newUsername },
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              withCredentials: true
             }
+          );
+          
+          if (authResponse.data && authResponse.data.token) {
+            // Update the stored token with the new one containing the updated username
+            localStorage.setItem('token', authResponse.data.token);
           }
-        );
-      } catch (syncError) {
-        console.warn('Failed to sync with auth service:', syncError);
-        // Non-critical error, continue with the update
+        } catch (authError) {
+          console.error('Error updating username in auth service:', authError);
+          // Non-critical error, continue with the update
+        }
       }
       
-      setUpdateSuccess(true);
-      setTimeout(() => setUpdateSuccess(false), 3000);
-      
-      // Update local profile data
+      // Update local profile data with the response from the user service
       setProfile(prev => ({
         ...prev, 
         username: newUsername,
         profileDescription: updateResponse.data.profileDescription || prev.profileDescription
       }));
+      
+      setUpdateSuccess(true);
+      // Show success message for 1 second then go back
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 1000);
       
     } catch (err) {
       console.error('Error updating profile:', err);
@@ -180,7 +173,10 @@ export default function ProfilePage() {
       setFile(null);
       setFilePreview('');
       setUpdateSuccess(true);
-      setTimeout(() => setUpdateSuccess(false), 3000);
+      // Show success message for 1 second then go back
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 1000);
     } catch (err) {
       console.error('Error uploading image:', err);
       setError('Failed to upload image');
