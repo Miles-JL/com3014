@@ -47,6 +47,8 @@ namespace UserService.Data
                 {
                     Username = record.Username,
                     ProfileImage = record.ProfileImage,
+                    ProfileDescription = record.ProfileDescription,
+                    Location = record.Location,
                     IsAdmin = bool.Parse(record.IsAdmin),
                     CreatedAt = DateTime.UtcNow,
                     LastUpdated = DateTime.UtcNow
