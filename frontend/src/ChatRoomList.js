@@ -20,11 +20,20 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
+    // Only fetch profile and user ID when we actually need it
+    const fetchRequiredData = async () => {
+      await fetchUserProfile();
+      getCurrentUserId();
+    };
+
+    // Only fetch data when we need it (e.g., when starting a DM)
+    if (onStartDm) {
+      fetchRequiredData();
+    }
+
     fetchChatRooms();
     checkAdminStatus();
-    fetchUserProfile();
-    getCurrentUserId();
-  }, []);
+  }, [onStartDm]);
 
   useEffect(() => {
     const delay = setTimeout(() => {
@@ -202,7 +211,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
         <div className="header-profile">
           <div className="header-profile-image">
             {profile.profileImage ? (
-              <img src={`${API_URL}${profile.profileImage}`} alt="Profile" />
+              <img src={profile.profileImage} alt="Profile" />
             ) : (
               <div className="no-image-small">
                 {profile.username?.charAt(0)?.toUpperCase() || "?"}
