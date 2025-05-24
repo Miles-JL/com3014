@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Shared.Auth;
 using ChatroomService.Data;
 using System.Text;
+using ChatroomService.Handlers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,9 @@ builder.Services.AddLogging();
 // PostgreSQL EF Core setup
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register HttpClientFactory for making HTTP calls
+builder.Services.AddHttpClient();
 
 // JWT Authentication setup with enhanced security and logging
 builder.Services.AddAuthentication(options =>

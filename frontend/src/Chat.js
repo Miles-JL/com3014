@@ -89,9 +89,12 @@ export default function Chat({ room, onLeave }) {
 
     socketRef.current.onmessage = (event) => {
       try {
+        console.log('Raw WebSocket message:', event.data);
         const messageData = JSON.parse(event.data);
+        console.log('Parsed message data:', messageData);
 
         if (messageData.type === "history") {
+          console.log('Received history:', messageData.messages);
           setMessages(messageData.messages || []);
         } else {
           if (
@@ -102,14 +105,19 @@ export default function Chat({ room, onLeave }) {
             const messageKey = `${messageData.sender}:${
               messageData.text
             }:${new Date(messageData.timestamp).getTime()}`;
+            console.log('Generated message key:', messageKey);
             if (localMessagesRef.current.has(messageKey)) {
+              console.log('Duplicate message, skipping');
               return;
             }
           }
+          console.log('Adding new message:', messageData);
           setMessages((prev) => [...prev, messageData]);
         }
       } catch (err) {
-        setMessages((prev) => [...prev, { text: event.data }]);
+        console.error('Error processing message:', err);
+        console.log('Raw message that caused error:', event.data);
+        setMessages((prev) => [...prev, { text: event.data, type: 'error' }]);
       }
     };
 
@@ -184,17 +192,16 @@ export default function Chat({ room, onLeave }) {
               ) : (
                 <>
                   <div className="message-header">
-                    {msg.profileImage ? (
-                      <img
-                        src={`${API_URL}${msg.profileImage}`}
-                        alt="Profile"
-                        className="profile-thumbnail"
-                      />
-                    ) : (
-                      <div className="profile-initial">
-                        {msg.sender?.charAt(0)?.toUpperCase() || "?"}
-                      </div>
-                    )}
+                    {console.log('Profile image URL for message:', msg.profileImage, 'Message:', msg)}
+                    <img
+                      src={msg.profileImage}
+                      alt="Profile"
+                      className="profile-thumbnail"
+                      onError={(e) => {
+                        console.error('Error loading profile image:', e.target.src);
+                        e.target.style.display = 'none';
+                      }}
+                    />
                     <span className="sender">{msg.sender || "Anonymous"}</span>
                     {msg.timestamp && (
                       <span className="timestamp">

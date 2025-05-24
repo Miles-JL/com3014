@@ -15,6 +15,14 @@ using Microsoft.AspNetCore.Http;
 using UserService.Services; 
 using Microsoft.AspNetCore.Authentication; 
 
+// DTO for internal user details
+public class UserInternalDto
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string ProfileImage { get; set; }
+}
+
 namespace UserService.Controllers
 {
     [ApiController]
@@ -460,6 +468,31 @@ namespace UserService.Controllers
                 Location = user.Location,
                 CreatedAt = user.CreatedAt
             };
+        }
+
+        // New Internal Endpoint for service-to-service communication
+        [HttpGet("internal/{id:int}")]
+        [AllowAnonymous] // Consider a more secure mechanism for production
+        public async Task<ActionResult<UserInternalDto>> GetInternalUserDetails(int id)
+        {
+            _logger.LogInformation("Internal request for user details for ID: {UserId}", id);
+
+            var user = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null)
+            { 
+                _logger.LogWarning("Internal request: User not found: {UserId}", id);
+                return NotFound(new { Message = $"User with ID {id} not found" });
+            }
+
+            return Ok(new UserInternalDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                ProfileImage = user.ProfileImage
+            });
         }
     }
 };
