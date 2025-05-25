@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  # Frontend Service (Development Mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true  # Better file watching in Docker
+    volumes:
+      - ./frontend:/app  # Mount the local directory for live updates
+      - /app/node_modules  # Keep node_modules in the container
+    working_dir: /app
+    stdin_open: true  # Required for HMR
+    tty: true         # Required for HMR
+    networks:
+      - app-network
+
+  # PostgreSQL Database
   postgres:
     image: postgres:16
     container_name: postgres
@@ -12,6 +33,25 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # NGINX Load Balancer
+  load-balancer:
+    build:
+      context: ./load-balancer
+      dockerfile: Dockerfile
+    container_name: load-balancer
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   pgdata:
