@@ -87,7 +87,7 @@ namespace AuthService.Controllers
                             Username = adminUser.Username,
                             IsAdmin = true
                         };
-                        await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+                        await httpClient.PostAsJsonAsync("http://user-service/api/User/sync", syncPayload);
                     }
                     catch (Exception ex)
                     {

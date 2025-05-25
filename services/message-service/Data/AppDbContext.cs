@@ -9,15 +9,24 @@ namespace MessageService.Data
 
         public DbSet<DirectMessage> DirectMessages { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            
+            // Configure your entity relationships and constraints here
+            modelBuilder.Entity<DirectMessage>()
+                .HasIndex(m => m.SenderId);
+                
+            modelBuilder.Entity<DirectMessage>()
+                .HasIndex(m => m.RecipientId);
+        }
+
         public async Task SeedAsync(bool isDevelopment = false)
         {
-            if (DirectMessages.Any())
+            if (isDevelopment && !DirectMessages.Any())
             {
-                if (isDevelopment)
-                {
-                    await Database.EnsureDeletedAsync();
-                    await Database.EnsureCreatedAsync();
-                }
+                // Add test data here if needed
+                await SaveChangesAsync();
             }
         }
     }

@@ -19,7 +19,6 @@ frontend/.cache/
 **/*.userprefs
 
 # EF Core
-**/Migrations/
 **/*.db
 
 # ───────────────────────────────

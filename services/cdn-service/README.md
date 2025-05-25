@@ -42,17 +42,17 @@ The CDN Service provides a simple, secure way to handle user-uploaded files (lik
    dotnet run
    ```
 
-3. The service will start on `http://localhost:5250`
+3. The service will start on `http://cdn-service:5250`
 
 ## 🧪 Testing with Swagger
 
-1. Access the Swagger UI at `http://localhost:5250/swagger`
+1. Access the Swagger UI at `http://cdn-service:5250/swagger`
 2. Click the "Authorize" button (lock icon)
 3. Paste your JWT token in the format: `Bearer your.jwt.token.here`
 4. Try the following:
    - **Upload**: Use the POST `/api/upload` endpoint with a file
    - **Delete**: Use the DELETE `/api/upload/{filename}` endpoint
-   - **View**: Access files directly at `http://localhost:5250/u/filename.jpg`
+   - **View**: Access files directly at `http://cdn-service:5250/u/filename.jpg`
 
 ## 🔄 Integration Notes
 
@@ -67,7 +67,7 @@ Add these to `appsettings.json`:
 ```json
 {
   "Cdn": {
-    "BaseUrl": "http://localhost:5250"
+    "BaseUrl": "http://cdn-service:5250"
   },
   "Jwt": {
     "Key": "your-secure-key-here",
@@ -178,13 +178,13 @@ The service exposes a health check endpoint at `/health` that monitors the servi
 
 **Basic Health Check**
 ```bash
-curl http://localhost:5250/health
+curl http://cdn-service:5250/health
 ```
 
 **Using in Docker Healthcheck**
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost:5250/health || exit 1
+  CMD curl -f http://cdn-service:5250/health || exit 1
 ```
 
 **Kubernetes Liveness Probe**
@@ -311,10 +311,10 @@ Each log entry includes:
 3. **Testing Logging**
    ```bash
    # Test health check logging
-   curl http://localhost:5250/health
+   curl http://cdn-service:5250/health
    
    # Test error logging
-   curl -X POST http://localhost:5250/api/upload -H "Content-Type: multipart/form-data" -F "file=@test.txt"
+   curl -X POST http://cdn-service:5250/api/upload -H "Content-Type: multipart/form-data" -F "file=@test.txt"
    ```
 
 ## ⚠️ Known Limitations

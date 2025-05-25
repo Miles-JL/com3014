@@ -71,7 +71,7 @@ builder.Services.AddScoped<JwtService>(); // Add JwtService
 // Register custom services for CDN and Auth synchronization
 builder.Services.AddHttpClient("CdnServiceClient", client =>
 {
-    var cdnServiceUrl = builder.Configuration["ServiceUrls:CdnService"] ?? "http://localhost:5250";
+    var cdnServiceUrl = builder.Configuration["ServiceUrls:CdnService"] ?? "http://cdn-service:5250";
     client.BaseAddress = new Uri(cdnServiceUrl);
 });
 builder.Services.AddScoped<ICdnService, CdnService>();

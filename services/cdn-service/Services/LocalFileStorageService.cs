@@ -32,7 +32,7 @@ namespace CdnService.Services
                 Directory.CreateDirectory(_basePath);
             }
             
-            _baseUrl = _configuration["Cdn:BaseUrl"]?.TrimEnd('/') ?? "http://localhost:5250";
+            _baseUrl = _configuration["Cdn:BaseUrl"]?.TrimEnd('/') ?? "http://cdn-service:5250";
         }
 
         public async Task<string> UploadFileAsync(IFormFile file, string? oldFileName = null)

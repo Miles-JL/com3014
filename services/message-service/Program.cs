@@ -127,10 +127,28 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
 
+// Apply database migrations on startup
+try
+{
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.SeedAsync(true);
+    
+    // Apply any pending migrations
+    await db.Database.MigrateAsync();
+    
+    // Seed data in development
+    if (app.Environment.IsDevelopment())
+    {
+        await db.SeedAsync(true);
+    }
+}
+catch (Exception ex)
+{
+    // Log the error and continue
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "An error occurred while migrating the database.");
 }
 
 //

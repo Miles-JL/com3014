@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Frontend Service (Development Mode)
   frontend:
@@ -36,6 +34,142 @@ services:
     networks:
       - app-network
 
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: auth-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=postgres
+      - Jwt__Key=supersecretkey_supersecretkey_supersecretkey
+      - Jwt__Issuer=com3014-auth-service
+      - Jwt__Audience=com3014-microservices
+    ports:
+      - "5106:80"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Chatroom Service
+  chatroom-service:
+    build:
+      context: .
+      dockerfile: services/chatroom-service/Dockerfile
+    container_name: chatroom-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=chatroom_db;Username=postgres;Password=postgres
+      - Jwt__Key=supersecretkey_supersecretkey_supersecretkey
+      - Jwt__Issuer=com3014-auth-service
+      - Jwt__Audience=com3014-microservices
+    ports:
+      - "5119:80"
+    depends_on:
+      - postgres
+      - auth-service
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Message Service
+  message-service:
+    build:
+      context: .
+      dockerfile: services/message-service/Dockerfile
+    container_name: message-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=message_db;Username=postgres;Password=postgres
+      - Jwt__Key=supersecretkey_supersecretkey_supersecretkey
+      - Jwt__Issuer=com3014-auth-service
+      - Jwt__Audience=com3014-microservices
+    ports:
+      - "5118:80"
+    depends_on:
+      - postgres
+      - auth-service
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Realtime Service
+  realtime-service:
+    build:
+      context: .
+      dockerfile: services/realtime-service/Dockerfile
+    container_name: realtime-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - Jwt__Key=supersecretkey_supersecretkey_supersecretkey
+      - Jwt__Issuer=com3014-auth-service
+      - Jwt__Audience=com3014-microservices
+    ports:
+      - "5200:80"
+    depends_on:
+      - auth-service
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: user-service
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=user_db;Username=postgres;Password=postgres
+      - Jwt__Key=supersecretkey_supersecretkey_supersecretkey
+      - Jwt__Issuer=com3014-auth-service
+      - Jwt__Audience=com3014-microservices
+      - Cdn__BaseUrl=http://cdn-service:80
+    ports:
+      - "5117:80"
+    volumes:
+      - user-uploads:/app/wwwroot/uploads
+    depends_on:
+      - postgres
+      - auth-service
+      - cdn-service
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # NGINX Load Balancer
   load-balancer:
     build:
@@ -46,6 +180,95 @@ services:
       - "80:80"
     depends_on:
       - frontend
+      - api-gateway-1
+      - api-gateway-2
+      - api-gateway-3
+    networks:
+      - app-network
+
+  # API Gateway Instances
+  api-gateway-1:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: api-gateway-1
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "5247:80"
+    networks:
+      - app-network
+    depends_on:
+      - user-service
+      - auth-service
+      - cdn-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  api-gateway-2:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: api-gateway-2
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "5248:80"
+    networks:
+      - app-network
+    depends_on:
+      - user-service
+      - auth-service
+      - cdn-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  api-gateway-3:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: api-gateway-3
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "5249:80"
+    networks:
+      - app-network
+    depends_on:
+      - user-service
+      - auth-service
+      - cdn-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # CDN Service
+  cdn-service:
+    build:
+      context: .
+      dockerfile: services/cdn-service/Dockerfile
+    container_name: cdn-service
+    ports:
+      - "5250:5250"
+    volumes:
+      - cdn-storage:/app/storage
+    environment:
+      - ASPNETCORE_URLS=http://+:5250
+      - STORAGE_PATH=/app/storage
     networks:
       - app-network
 
@@ -55,3 +278,5 @@ networks:
 
 volumes:
   pgdata:
+  cdn-storage:
+  user-uploads:

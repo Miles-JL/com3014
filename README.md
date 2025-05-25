@@ -70,7 +70,6 @@ This launches all the microservices with predefined ports:
 - `chatroom-service`: http://localhost:5262  
 - `message-service`: http://localhost:5199  
 - `realtime-service`: http://localhost:5200  
-- `notification-service`: http://localhost:5201  
 - `api-gateway` (Instance 1): http://localhost:5247  
 - `api-gateway` (Instance 2): http://localhost:5248  
 - `api-gateway` (Instance 3): http://localhost:5249  
