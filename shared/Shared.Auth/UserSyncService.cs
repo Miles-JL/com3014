@@ -27,7 +27,7 @@ namespace Shared.Auth
         {
             try
             {
-                var chatroomService = _configuration["Services:ChatroomService"] ?? "http://localhost:5262";
+                var chatroomService = _configuration["Services:ChatroomService"] ?? "http://chatroom-service:5262";
                 
                 var syncRequest = new UserSyncRequest
                 {

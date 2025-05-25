@@ -18,7 +18,7 @@ namespace UserService.Services
         public CdnService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<CdnService> logger)
         {
             _httpClient = httpClientFactory.CreateClient("CdnServiceClient");
-            _cdnServiceBaseUrl = configuration["ServiceUrls:CdnService"] ?? "http://localhost:5250";
+            _cdnServiceBaseUrl = configuration["ServiceUrls:CdnService"] ?? "http://cdn-service:5250";
             _logger = logger;
         }
 

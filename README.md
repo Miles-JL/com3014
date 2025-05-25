@@ -65,12 +65,12 @@ powershell -ExecutionPolicy Bypass -File .\start-all-microservices.ps1
 
 This launches all the microservices with predefined ports:
 
-- `auth-service`: http://localhost:5106  
-- `user-service`: http://localhost:5117  
-- `chatroom-service`: http://localhost:5262  
-- `message-service`: http://localhost:5199  
-- `realtime-service`: http://localhost:5200  
-- `notification-service`: http://localhost:5201  
+- `auth-service`: http://auth-service:5106  
+- `user-service`: http://user-service:5117  
+- `chatroom-service`: http://chatroom-service:5262  
+- `message-service`: http://message-service:5199  
+- `realtime-service`: http://realtime-service:5200  
+- `notification-service`: http://notification-service:5201  
 - `api-gateway` (Instance 1): http://localhost:5247  
 - `api-gateway` (Instance 2): http://localhost:5248  
 - `api-gateway` (Instance 3): http://localhost:5249  

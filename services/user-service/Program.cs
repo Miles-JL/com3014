@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:3000") // Frontend
+            .WithOrigins("http://frontend:3000") // Frontend
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -27,7 +27,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowApiGateway", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:5247") // API Gateway
+            .WithOrigins("http://api-gateway:5247") // API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -77,14 +77,14 @@ builder.Services.AddScoped<JwtService>(); // Add JwtService
 // Register custom services for CDN and Auth synchronization
 builder.Services.AddHttpClient("CdnServiceClient", client =>
 {
-    var cdnServiceUrl = builder.Configuration["ServiceUrls:CdnService"] ?? "http://localhost:5250";
+    var cdnServiceUrl = builder.Configuration["ServiceUrls:CdnService"] ?? "http://cdn-service:5250";
     client.BaseAddress = new Uri(cdnServiceUrl);
 });
 builder.Services.AddScoped<ICdnService, CdnService>();
 
 builder.Services.AddHttpClient("AuthServiceClient", client =>
 {
-    var authServiceUrl = builder.Configuration["ServiceUrls:AuthService"] ?? "http://localhost:5106";
+    var authServiceUrl = builder.Configuration["ServiceUrls:AuthService"] ?? "http://auth-service:5106";
     client.BaseAddress = new Uri(authServiceUrl);
 });
 builder.Services.AddScoped<IAuthSyncService, AuthSyncService>();

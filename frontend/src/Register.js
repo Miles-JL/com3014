@@ -10,7 +10,7 @@ export default function Register({ onRegister, switchToLogin }) {
 
   const handleRegister = async () => {
     try {
-      await axios.post(`${API_URL}/api/auth/register`, {
+      await axios.post(`/api/auth/register`, {
         username,
         passwordHash: password,
       });

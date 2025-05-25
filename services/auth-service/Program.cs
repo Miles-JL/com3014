@@ -17,7 +17,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:3000") // Frontend
+            .WithOrigins("http://frontend:3000") // Frontend
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -26,7 +26,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowApiGateway", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:5247") // API Gateway
+            .WithOrigins("http://api-gateway:5247") // API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();

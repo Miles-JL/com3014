@@ -16,7 +16,7 @@ namespace UserService.Services
         public AuthSyncService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient("AuthServiceClient");
-            _authServiceBaseUrl = configuration["ServiceUrls:AuthService"] ?? "http://localhost:5106";
+            _authServiceBaseUrl = configuration["ServiceUrls:AuthService"] ?? "http://auth-service:5106";
         }
 
         public async Task<bool> UpdateUserProfileAsync(UserProfileUpdateDto userProfileUpdate, string accessToken)

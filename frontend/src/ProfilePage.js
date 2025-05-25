@@ -29,7 +29,7 @@ export default function ProfilePage() {
         return;
       }
       
-      const response = await axios.get(`${API_URL}/api/user/profile`, {
+      const response = await axios.get(`$/api/user/profile`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -57,7 +57,7 @@ export default function ProfilePage() {
       if (newUsername !== profile.username) {
         // First update username in auth service
         const authResponse = await axios.post(
-          'http://localhost:5106/api/Auth/update-username',
+          '/api/Auth/update-username',
           { newUsername },
           {
             headers: {
@@ -76,7 +76,7 @@ export default function ProfilePage() {
       
       // Then update the rest of the profile in the user service
       const updateResponse = await axios.put(
-        `${API_URL}/api/user/profile`,
+        `$/api/user/profile`,
         {
           username: newUsername !== profile.username ? newUsername : undefined,
           profileDescription: profile.profileDescription
@@ -93,7 +93,7 @@ export default function ProfilePage() {
       // Sync with Auth service to ensure data consistency
       try {
         await axios.post(
-          `${API_URL}/api/user/sync-with-auth`,
+          `/api/user/sync-with-auth`,
           {},
           {
             headers: {
@@ -162,7 +162,7 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_URL}/api/user/profile-image`,
+        `/api/user/profile-image`,
         formData,
         {
           headers: {

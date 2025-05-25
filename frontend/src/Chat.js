@@ -18,7 +18,7 @@ export default function Chat({ room, onLeave }) {
       try {
         const token = localStorage.getItem("token");
         if (token) {
-          const response = await fetch(`${API_URL}/api/user/profile`, {
+          const response = await fetch(`/api/user/profile`, {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -61,7 +61,7 @@ export default function Chat({ room, onLeave }) {
       socketRef.current.close();
     }
 
-    const wsUrl = `ws://${API_URL.replace("http://", "")}/ws/chat?token=${token}&roomId=${room.id}`;
+    const wsUrl = `ws://${window.location.host}/ws/chat?token=${token}&roomId=${room.id}`;
     socketRef.current = new WebSocket(wsUrl);
 
     socketRef.current.onopen = () => {
@@ -168,7 +168,7 @@ export default function Chat({ room, onLeave }) {
                   <div className="message-header">
                     {msg.profileImage ? (
                       <img 
-                        src={`${API_URL}${msg.profileImage}`} 
+                        src={`${msg.profileImage}`} 
                         alt="Profile" 
                         className="profile-thumbnail" 
                       />

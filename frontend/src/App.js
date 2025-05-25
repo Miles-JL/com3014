@@ -29,7 +29,7 @@ function App() {
 
   const handleRegister = async () => {
     try {
-      await axios.post(`${API_URL}/api/auth/register`, {
+      await axios.post(`/api/auth/register`, {
         username,
         passwordHash: password,
       });
@@ -42,7 +42,7 @@ function App() {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, {
+      const res = await axios.post(`/api/auth/login`, {
         username,
         passwordHash: password,
       });

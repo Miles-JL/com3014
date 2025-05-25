@@ -73,7 +73,7 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "null",
-                "http://localhost:5247"
+                "http://api-gateway:5247"
             )
             .AllowAnyMethod()
             .AllowAnyHeader();

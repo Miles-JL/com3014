@@ -64,7 +64,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await axios.get(`${API_URL}/api/user/profile`, {
+      const response = await axios.get(`/api/user/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -97,7 +97,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
   const fetchChatRooms = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_URL}/api/chatroom`);
+      const response = await axios.get(`/api/chatroom`);
       setRooms(response.data);
       setIsLoading(false);
     } catch (err) {
@@ -122,7 +122,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
         return;
       }
 
-      const response = await axios.post(`${API_URL}/api/chatroom`, newRoom, {
+      const response = await axios.post(`/api/chatroom`, newRoom, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -148,7 +148,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
       );
       if (!confirmed) return;
 
-      await axios.delete(`${API_URL}/api/chatroom/${roomId}`, {
+      await axios.delete(`/api/chatroom/${roomId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -169,7 +169,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
       if (!window.confirm("Are you sure you want to delete ALL chat rooms?"))
         return;
 
-      await axios.delete(`${API_URL}/api/chatroom/admin/deleteAll`, {
+      await axios.delete(`/api/chatroom/admin/deleteAll`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -192,7 +192,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
     try {
       setIsSearching(true);
       const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_URL}/api/user/search?query=${query}`, {
+      const res = await axios.get(`/api/user/search?query=${query}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSearchResults(res.data);
@@ -238,7 +238,7 @@ export default function ChatRoomList({ onSelectRoom, onStartDm }) {
                 <div className="user-result-info">
                   {user.profileImage ? (
                     <img
-                      src={`${API_URL}${user.profileImage}`}
+                      src={`${user.profileImage}`}
                       alt={user.username}
                     />
                   ) : (

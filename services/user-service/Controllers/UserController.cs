@@ -135,7 +135,7 @@ namespace UserService.Controllers
                 {
                     using var httpClient = new HttpClient();
                     var authResponse = await httpClient.PostAsJsonAsync(
-                        "http://localhost:5106/api/Auth/update-username", 
+                        "http://auth-service:5106/api/Auth/update-username", 
                         new { NewUsername = profileRequest.Username });
 
                     if (!authResponse.IsSuccessStatusCode)
@@ -339,7 +339,7 @@ namespace UserService.Controllers
             {
                 using var httpClient = new HttpClient();
                 var authResponse = await httpClient.PostAsJsonAsync(
-                    "http://localhost:5106/api/Auth/update-user", 
+                    "http://auth-service:5106/api/Auth/update-user", 
                     new 
                     {
                         Id = user.Id,

@@ -13,5 +13,169 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  api-gateway-1:
+    build: 
+      context: .
+      dockerfile: /services/api-gateway/Dockerfile
+    container_name: api-gateway-1
+    ports:
+      - "5247:5247"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5247
+    depends_on:
+      - auth-service
+      - user-service
+      - chatroom-service
+      - message-service
+      - notification-service
+      - cdn-service
+      - realtime-service
+
+  api-gateway-2:
+    build: 
+      context: .
+      dockerfile: /services/api-gateway/Dockerfile
+    container_name: api-gateway-2
+    ports:
+      - "5248:5248"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5248
+    depends_on:
+      - auth-service
+      - user-service
+      - chatroom-service
+      - message-service
+      - notification-service
+      - cdn-service
+      - realtime-service
+
+  api-gateway-3:
+    build: 
+      context: .
+      dockerfile: /services/api-gateway/Dockerfile
+    container_name: api-gateway-3
+    ports:
+      - "5249:5249"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5249
+    depends_on:
+      - auth-service
+      - user-service
+      - chatroom-service
+      - message-service
+      - notification-service
+      - cdn-service
+      - realtime-service
+      
+  auth-service:
+    build: 
+      context: .
+      dockerfile: /services/auth-service/Dockerfile
+    container_name: auth-service
+    ports:
+      - "5106:5106"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5106
+    depends_on:
+      - postgres
+
+  user-service:
+    build: 
+      context: .
+      dockerfile: /services/user-service/Dockerfile
+    container_name: user-service
+    ports:
+      - "5117:5117"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5117
+    depends_on:
+      - postgres
+      - cdn-service
+      - auth-service
+
+  cdn-service:
+    build: 
+      context: .
+      dockerfile: /services/cdn-service/Dockerfile
+    container_name: cdn-service
+    ports:
+      - "5250:5250"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5250
+
+  chatroom-service:
+    build: 
+      context: .
+      dockerfile: /services/chatroom-service/Dockerfile
+    container_name: chatroom-service
+    ports:
+      - "5262:5262"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5262
+    depends_on:
+      - postgres
+      - user-service
+
+  message-service:
+    build: 
+      context: .
+      dockerfile: /services/message-service/Dockerfile
+    container_name: message-service
+    ports:
+      - "5199:5199"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5199
+    depends_on:
+      - postgres
+      - user-service
+
+  notification-service:
+    build: 
+      context: .
+      dockerfile: /services/notification-service/Dockerfile
+    container_name: notification-service
+    ports:
+      - "5201:5201"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5201
+    depends_on:
+      - postgres
+      - user-service
+
+  realtime-service:
+    build: 
+      context: .
+      dockerfile: /services/realtime-service/Dockerfile
+    container_name: realtime-service
+    ports:
+      - "5200:5200"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5200
+    depends_on:
+      - user-service
+      - message-service
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway-1
+      - api-gateway-2
+      - api-gateway-3
+  
+  nginx:
+    build: ./load-balancer
+    container_name: nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - api-gateway-1
+      - api-gateway-2
+      - api-gateway-3
+
+
 volumes:
   pgdata:

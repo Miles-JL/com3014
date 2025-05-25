@@ -94,7 +94,7 @@
     }
 
     async function loadHistory() {
-        const res = await fetch(`http://localhost:5199/api/message/history?recipientId=${recipientId}&limit=50`, {
+        const res = await fetch(`http://message-service:5199/api/message/history?recipientId=${recipientId}&limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
         });
 

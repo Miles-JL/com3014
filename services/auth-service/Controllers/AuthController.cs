@@ -49,7 +49,7 @@ namespace AuthService.Controllers
             };
 
             // TODO: Dockerize user-service and use its container name instead of localhost (when we intend to dockerize microservices)
-            var syncResponse = await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+            var syncResponse = await httpClient.PostAsJsonAsync("http://user-service:5117/api/User/sync", syncPayload);
             if (!syncResponse.IsSuccessStatusCode)
             {
                 return StatusCode(500, "Failed to sync user profile to user-service");
@@ -87,7 +87,7 @@ namespace AuthService.Controllers
                             Username = adminUser.Username,
                             IsAdmin = true
                         };
-                        await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+                        await httpClient.PostAsJsonAsync("http://user-service:5117/api/User/sync", syncPayload);
                     }
                     catch (Exception ex)
                     {
@@ -119,7 +119,7 @@ namespace AuthService.Controllers
                 };
 
                 // TODO: Dockerize user-service and use its container name instead of localhost (when we intend to dockerize microservices)
-                await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+                await httpClient.PostAsJsonAsync("http://user-service:5117/api/User/sync", syncPayload);
             }
             catch (Exception ex)
             {
@@ -189,7 +189,7 @@ namespace AuthService.Controllers
                     };
 
                     using var httpClient = new HttpClient();
-                    await httpClient.PostAsJsonAsync("http://localhost:5117/api/User/sync", syncPayload);
+                    await httpClient.PostAsJsonAsync("http://user-service:5117/api/User/sync", syncPayload);
                     _logger.LogInformation("Successfully synced user data with User Service");
                 }
                 catch (Exception ex)

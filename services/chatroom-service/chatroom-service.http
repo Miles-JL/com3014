@@ -1,4 +1,4 @@
-@chatroom_service_HostAddress = http://localhost:5262
+@chatroom_service_HostAddress = http://chatroom-service:5262
 
 GET {{chatroom_service_HostAddress}}/weatherforecast/
 Accept: application/json
