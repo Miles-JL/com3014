@@ -165,9 +165,10 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var db = services.GetRequiredService<AppDbContext>();
-        
+        db.Database.Migrate();
+
         // In development, we'll clear and recreate the database
-        if (isDevelopment)
+        if (app.Environment.IsDevelopment() || app.Environment.IsProduction() || app.Environment.IsStaging())
         {
             logger.LogInformation("Development environment detected. Recreating database...");
             await db.Database.EnsureDeletedAsync();

@@ -3,7 +3,10 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore as distinct layers
-COPY services/notification-service/notification-service.csproj ./
+COPY ["services/notification-service/notification-service.csproj", "services/notification-service/"]
+COPY ["shared/Shared.Models/Shared.Models.csproj", "shared/Shared.Models/"]
+COPY ["shared/Shared.Auth/Shared.Auth.csproj", "shared/Shared.Auth/"]
+COPY ["shared/Shared.Logging/Shared.Logging.csproj", "shared/Shared.Logging/"]
 
 
 # Copy the rest of the source code

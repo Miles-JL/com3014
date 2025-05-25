@@ -85,7 +85,7 @@ builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsProduction() || app.Environment.IsStaging())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -93,7 +93,9 @@ if (app.Environment.IsDevelopment())
     // Clear and recreate DB in dev mode
     using (var scope = app.Services.CreateScope())
     {
+        
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
         await db.SeedAsync(true);
     }
 }

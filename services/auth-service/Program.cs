@@ -26,7 +26,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowApiGateway", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://api-gateway:5247") // API Gateway
+            .WithOrigins("http://api-gateway:80") // API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -126,20 +126,22 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Seed data in development
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsProduction() || app.Environment.IsStaging())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var csvPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "auth_users_seed.csv");
-    
+
     try
     {
+        db.Database.Migrate();
+
+        var csvPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "auth_users_seed.csv");
         await db.SeedFromCsvAsync(csvPath, isDevelopment: true);
         app.Logger.LogInformation("Database seeded successfully with test data");
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "An error occurred while seeding the database");
+        app.Logger.LogError(ex, "An error occurred while setting up the database");
     }
 }
 
