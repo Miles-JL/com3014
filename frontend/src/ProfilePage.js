@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:80';
-
 export default function ProfilePage({ onBack }) {
   const [profile, setProfile] = useState({
     username: '',
@@ -29,7 +27,7 @@ export default function ProfilePage({ onBack }) {
         return;
       }
       
-      const response = await axios.get(`${API_URL}/api/user/profile`, {
+      const response = await axios.get(`/api/user/profile`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -55,7 +53,7 @@ export default function ProfilePage({ onBack }) {
       
       // First update the profile in the user service
       const updateResponse = await axios.put(
-        `${API_URL}/api/user/profile`,
+        `/api/user/profile`,
         {
           username: newUsername !== profile.username ? newUsername : undefined,
           profileDescription: profile.profileDescription
@@ -74,7 +72,7 @@ export default function ProfilePage({ onBack }) {
       if (newUsername !== profile.username) {
         try {
           const authResponse = await axios.post(
-            `${API_URL}/api/auth/update-username`,
+            `/api/auth/update-username`,
             { newUsername },
             {
               headers: {
@@ -155,7 +153,7 @@ export default function ProfilePage({ onBack }) {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_URL}/api/user/profile-image`,
+        `/api/user/profile-image`,
         formData,
         {
           headers: {

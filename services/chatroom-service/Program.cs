@@ -89,19 +89,37 @@ builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
+// Configure Swagger in Development
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    // Clear and recreate DB in dev mode
-    using (var scope = app.Services.CreateScope())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.SeedAsync(true);
-    }
 }
 
+// Ensure database is created and apply migrations
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try 
+    {
+        var db = services.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+        
+        // Seed data in development
+        if (app.Environment.IsDevelopment())
+        {
+            await db.SeedAsync(true);
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Database seeded successfully");
+        }
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating or seeding the database");
+        throw; // Rethrow to fail fast if we can't connect to the database
+    }
+}
 
 app.UseHttpsRedirection();
 app.UseRouting();

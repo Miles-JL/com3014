@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowConfiguredOrigins", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:3000", "http://localhost:80") // Frontend and API Gateway
+            .WithOrigins("http://frontend:3000", "http://localhost:80") // Frontend and API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()
@@ -78,7 +78,7 @@ builder.Services.AddScoped<ICdnService, CdnService>();
 
 builder.Services.AddHttpClient("AuthServiceClient", client =>
 {
-    var authServiceUrl = builder.Configuration["ServiceUrls:AuthService"] ?? "http://localhost:5106";
+    var authServiceUrl = builder.Configuration["ServiceUrls:AuthService"] ?? "http://auth-service";
     client.BaseAddress = new Uri(authServiceUrl);
 });
 builder.Services.AddScoped<IAuthSyncService, AuthSyncService>();

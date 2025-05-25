@@ -5,7 +5,7 @@
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
-      "applicationUrl": "http://localhost:5262",
+      "applicationUrl": "http://chatroom-service:5262",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -14,7 +14,7 @@
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
-      "applicationUrl": "https://localhost:7079;http://localhost:5262",
+      "applicationUrl": "http://chatroom-service:5262",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

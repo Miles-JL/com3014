@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:80";
-
 export default function DMChat({ recipient, onLeave }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -24,7 +22,7 @@ export default function DMChat({ recipient, onLeave }) {
       if (!token) return;
 
       try {
-        const response = await fetch(`${API_URL}/api/user/profile`, {
+        const response = await fetch(`/api/user/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -61,7 +59,7 @@ export default function DMChat({ recipient, onLeave }) {
       if (!token || !recipient) return;
 
       try {
-        const response = await fetch(`${API_URL}/api/message/history?recipientId=${recipient.id}&limit=50`, {
+        const response = await fetch(`/api/message/history?recipientId=${recipient.id}&limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -77,7 +75,7 @@ export default function DMChat({ recipient, onLeave }) {
               };
             }
 
-            const senderResponse = await fetch(`${API_URL}/api/user/${msg.senderId}`, {
+            const senderResponse = await fetch(`/api/user/${msg.senderId}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
 
@@ -142,7 +140,7 @@ export default function DMChat({ recipient, onLeave }) {
   const connectWebSocket = (token) => {
     if (hasLeft.current) return;
 
-    const wsUrl = `ws://${API_URL.replace("http://", "")}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
+    const wsUrl = `ws://${window.location.host}/ws/dm?access_token=${token}&recipientId=${recipient.id}`;
     socketRef.current = new WebSocket(wsUrl);
 
     socketRef.current.onopen = () => {

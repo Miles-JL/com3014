@@ -65,14 +65,14 @@ powershell -ExecutionPolicy Bypass -File .\start-all-microservices.ps1
 
 This launches all the microservices with predefined ports:
 
-- `auth-service`: http://localhost:5106  
-- `user-service`: http://localhost:5117  
-- `chatroom-service`: http://localhost:5262  
-- `message-service`: http://localhost:5199  
-- `realtime-service`: http://localhost:5200  
-- `api-gateway` (Instance 1): http://localhost:5247  
-- `api-gateway` (Instance 2): http://localhost:5248  
-- `api-gateway` (Instance 3): http://localhost:5249  
+- `auth-service`: http://auth-service:5106  
+- `user-service`: http://user-service:5117  
+- `chatroom-service`: http://chatroom-service:5262  
+- `message-service`: http://message-service:5199  
+- `realtime-service`: http://realtime-service:5200  
+- `api-gateway` (Instance 1): http://api-gateway-1:80  
+- `api-gateway` (Instance 2): http://api-gateway-2:80  
+- `api-gateway` (Instance 3): http://api-gateway-3:80  
 
 Each exposes Swagger UI for testing (if applicable).
 
@@ -93,7 +93,7 @@ This script will:
 
 The frontend will be available at:
 
-- `http://localhost:3000` (default React development server port).
+- `http://frontend:3000` (default React development server port).
 
 **Important:** You should access the frontend through NGINX at:
 
@@ -115,7 +115,7 @@ cd C:\nginx
 > Replace the path with the actual location of your `nginx.conf` (Right click `nginx.conf` and Copy Path).
 
 This starts NGINX with our custom config. It proxies:
-- Frontend requests at `/` to `localhost:3000`
+- Frontend requests at `/` to `frontend:3000`
 - API requests at `/api/` to the round-robin upstream (5247, 5248, 5249)
 
 ### Optional: Managing NGINX (Do these from a new terminal)

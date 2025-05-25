@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:80";
-
 export default function Chat({ room, onLeave }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -18,7 +16,7 @@ export default function Chat({ room, onLeave }) {
       try {
         const token = localStorage.getItem("token");
         if (token) {
-          const response = await fetch(`${API_URL}/api/user/profile`, {
+          const response = await fetch(`/api/user/profile`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -61,10 +59,7 @@ export default function Chat({ room, onLeave }) {
       socketRef.current.close();
     }
 
-    const wsUrl = `ws://${API_URL.replace(
-      "http://",
-      ""
-    )}/ws/chat?access_token=${token}&roomId=${room.id}`;
+    const wsUrl = `ws://${window.location.host}/ws/chat?token=${token}&roomId=${room.id}`;
     socketRef.current = new WebSocket(wsUrl);
 
     let heartbeatInterval = null;

@@ -189,7 +189,7 @@ public class DmHandler
                 IsRead = false
             };
 
-            var response = await client.PostAsJsonAsync("http://localhost:5199/api/message/send", directMessage);
+            var response = await client.PostAsJsonAsync("http://message-service/api/message/send", directMessage);
             Console.WriteLine($"Sent message to message-service (Status: {response.StatusCode})");
         }
         catch (Exception ex)

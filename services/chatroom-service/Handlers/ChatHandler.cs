@@ -75,7 +75,7 @@ namespace ChatroomService.Handlers
             {
                 var client = _httpClientFactory.CreateClient();
                 // TODO: Make user-service URL configurable
-                var userServiceUrl = $"http://localhost:5117/api/user/internal/{userId}"; 
+                var userServiceUrl = $"http://user-service/api/user/internal/{userId}"; 
                 _logger.LogInformation($"Fetching user details for ID {userId} from {userServiceUrl}");
                 
                 UserInternalDto userDetailsDto = null;

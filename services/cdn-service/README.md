@@ -52,7 +52,7 @@ The CDN Service provides a simple, secure way to handle user-uploaded files (lik
 4. Try the following:
    - **Upload**: Use the POST `/api/upload` endpoint with a file
    - **Delete**: Use the DELETE `/api/upload/{filename}` endpoint
-   - **View**: Access files directly at `http://cdn-service:5250/u/filename.jpg`
+   - **View**: Access files directly at `http://localhost:5250/u/filename.jpg`
 
 ## 🔄 Integration Notes
 

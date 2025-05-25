@@ -39,7 +39,7 @@
     function connect() {
         log.value = `Connecting as test${userId}...\n`;
 
-        socket = new WebSocket(`ws://localhost:5200/ws/dm?access_token=${token}`);
+        socket = new WebSocket(`ws://realtime-service:5200/ws/dm?access_token=${token}`);
 
         socket.onopen = async () => {
         logMessage(`Connected as test${userId}`);
@@ -94,7 +94,7 @@
     }
 
     async function loadHistory() {
-        const res = await fetch(`http://localhost:5199/api/message/history?recipientId=${recipientId}&limit=50`, {
+        const res = await fetch(`http://message-service:5199/api/message/history?recipientId=${recipientId}&limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
         });
 

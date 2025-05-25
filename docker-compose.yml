@@ -54,7 +54,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://auth-service:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -74,14 +74,14 @@ services:
       - Jwt__Issuer=com3014-auth-service
       - Jwt__Audience=com3014-microservices
     ports:
-      - "5119:80"
+      - "5262:80"
     depends_on:
       - postgres
       - auth-service
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://chatroom-service:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -101,14 +101,14 @@ services:
       - Jwt__Issuer=com3014-auth-service
       - Jwt__Audience=com3014-microservices
     ports:
-      - "5118:80"
+      - "5199:80"
     depends_on:
       - postgres
       - auth-service
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://message-service:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -133,7 +133,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://realtime-service:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -164,7 +164,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://user-service:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -204,7 +204,7 @@ services:
       - auth-service
       - cdn-service
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://api-gateway-1:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -227,7 +227,7 @@ services:
       - auth-service
       - cdn-service
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://api-gateway-2:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -250,7 +250,7 @@ services:
       - auth-service
       - cdn-service
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://api-gateway-3:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -25,17 +25,19 @@ namespace AuthService.Data
         {
             try
             {
-                if (Users.Any())
+                // In development, we'll recreate the database each time
+                if (isDevelopment)
                 {
-                    if (isDevelopment)
-                    {
-                        Database.EnsureDeleted();
-                        Database.EnsureCreated();
-                    }
-                    else
-                    {
-                        return;
-                    }
+                    await Database.EnsureDeletedAsync();
+                }
+                
+                // This will create the database and apply migrations if they exist
+                await Database.EnsureCreatedAsync();
+
+                // Don't reseed if we already have data (in non-dev environments)
+                if (!isDevelopment && await Users.AnyAsync())
+                {
+                    return;
                 }
 
                 var config = new CsvConfiguration(CultureInfo.InvariantCulture)

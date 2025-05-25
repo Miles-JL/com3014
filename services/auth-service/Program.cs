@@ -17,7 +17,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowConfiguredOrigins", policyBuilder =>
     {
         policyBuilder
-            .WithOrigins("http://localhost:3000", "http://localhost:80") // Frontend and API Gateway
+            .WithOrigins("http://frontend:3000", "http://localhost:80") // Frontend and API Gateway
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()
@@ -118,21 +118,27 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Seed data in development
-if (app.Environment.IsDevelopment())
+// Ensure database is created and apply migrations
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var csvPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "auth_users_seed.csv");
-    
-    try
+    var services = scope.ServiceProvider;
+    try 
     {
-        await db.SeedFromCsvAsync(csvPath, isDevelopment: true);
-        app.Logger.LogInformation("Database seeded successfully with test data");
+        var db = services.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+        
+        // Seed data in development
+        if (app.Environment.IsDevelopment())
+        {
+            var csvPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "auth_users_seed.csv");
+            await db.SeedFromCsvAsync(csvPath, isDevelopment: true);
+            app.Logger.LogInformation("Database seeded successfully with test data");
+        }
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "An error occurred while seeding the database");
+        app.Logger.LogError(ex, "An error occurred while migrating or seeding the database");
+        throw; // Rethrow to fail fast if we can't connect to the database
     }
 }
 

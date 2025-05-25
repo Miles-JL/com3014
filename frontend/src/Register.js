@@ -1,8 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_URL = 'http://localhost:80';
-
 export default function Register({ onRegister, switchToLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -10,7 +8,7 @@ export default function Register({ onRegister, switchToLogin }) {
 
   const handleRegister = async () => {
     try {
-      await axios.post(`${API_URL}/api/auth/register`, {
+      await axios.post(`/api/auth/register`, {
         username,
         passwordHash: password,
       });

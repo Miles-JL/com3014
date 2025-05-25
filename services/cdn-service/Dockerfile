@@ -19,12 +19,16 @@ RUN dotnet publish "cdn-service.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
-# Create storage directory and set permissions
-RUN mkdir -p /app/storage && \
-    chmod 777 /app/storage
+# Create storage and seed data directories
+RUN mkdir -p /app/storage /app/seed-data && \
+    chmod -R 777 /app/storage && \
+    chmod -R 755 /app/seed-data
 
 # Copy the published app
 COPY --from=publish /app/publish .
+
+# Copy seed data
+COPY services/cdn-service/seed-data/ /app/seed-data/
 
 # Set environment variables
 ENV ASPNETCORE_URLS=http://+:5250

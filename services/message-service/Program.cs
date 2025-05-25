@@ -64,7 +64,7 @@ builder.Services.AddEndpointsApiExplorer();
 //
 // Configure CORS to support:
 // 1. file:// based static pages (origin = "null")
-// 2. local API gateway running on http://localhost:5247
+// 2. local API gateway running on http://api-gateway-1:80
 //
 builder.Services.AddCors(options =>
 {
@@ -73,7 +73,7 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "null",
-                "http://localhost:5247"
+                "http://api-gateway-1:80"
             )
             .AllowAnyMethod()
             .AllowAnyHeader();
